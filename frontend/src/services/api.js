@@ -18,7 +18,7 @@ async function request(path, options = {}) {
 export function registerUser({ firstName, lastName, email, password }) {
   return request('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ firstName, lastName, email, password }),
+    body: JSON.stringify({ firstName, lastName, email, password, role }), // p - added role
   });
 }
 
