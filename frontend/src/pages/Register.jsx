@@ -121,9 +121,6 @@ export default function Register() {
               <div className="text-xs text-text-secondary mt-1.5">At least 6 characters.</div>
             </div>
 
-            
-
-           // paula - added a dropdown in the form
            <div className="mb-6">
              <label className="block text-[13px] font-medium text-text-secondary mb-1.5" htmlFor="role">
                I want to join as a:
