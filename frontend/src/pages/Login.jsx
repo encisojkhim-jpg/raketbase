@@ -18,7 +18,7 @@ export default function Login() {
     try {
       const { token } = await loginUser({ email, password });
       localStorage.setItem('token', token);
-      window.location.href = 'https://youtube.com';
+      window.location.href = '/dashboard';
     } catch (err) {
       setError(err.message);
       setLoading(false);
