@@ -1,66 +1,101 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { categories, freelancers, skillOptions } from '../data/mockFreelancers';
-import {
-  BookmarkIcon,
-  ChevronDownIcon,
-  CloseIcon,
-  ExperienceIcon,
-  ClockIcon,
-  SearchIcon,
-  StarIcon,
-} from '../components/Icons';
+import { ChevronDownIcon, CloseIcon, ClockIcon, SearchIcon } from '../components/Icons';
 
-const DEFAULT_SALARY = { min: 20, max: 300 };
-const DEFAULT_EXPERIENCE = { min: 0, max: 6 };
+// TODO: point this at your actual backend port if it isn't 5000,
+// or set VITE_API_URL in a .env file in frontend/.
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 export default function Explore() {
   const navigate = useNavigate();
 
-  const [activeCategory, setActiveCategory] = useState('design');
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+
+  const [activeCategory, setActiveCategory] = useState('all');
   const [query, setQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(true);
-  const [availability, setAvailability] = useState('Full-time');
-  const [salary, setSalary] = useState(DEFAULT_SALARY);
-  const [experience, setExperience] = useState(DEFAULT_EXPERIENCE);
-  const [activeSkills, setActiveSkills] = useState(['Figma']);
-  const [saved, setSaved] = useState(() => new Set());
+  const [budget, setBudget] = useState(null); // set once jobs load, from real min/max
 
-  function toggleSkill(skill) {
-    setActiveSkills((prev) =>
-      prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]
-    );
-  }
+  useEffect(() => {
+    let cancelled = false;
 
-  function toggleSaved(id) {
-    setSaved((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
+    async function loadJobs() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const res = await fetch(`${API_BASE_URL}/jobs`);
+        const body = await res.json();
+        if (!res.ok || !body.success) {
+          throw new Error(body.error || `Request failed (${res.status})`);
+        }
+        if (cancelled) return;
+
+        const data = body.data || [];
+        setJobs(data);
+
+        if (data.length) {
+          const amounts = data.map((j) => Number(j.budget) || 0);
+          setBudget({ min: Math.min(...amounts), max: Math.max(...amounts) });
+        } else {
+          setBudget({ min: 0, max: 0 });
+        }
+      } catch (err) {
+        if (!cancelled) setLoadError(err.message || 'Could not load jobs.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadJobs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const budgetBounds = useMemo(() => {
+    if (!jobs.length) return { min: 0, max: 1000 };
+    const amounts = jobs.map((j) => Number(j.budget) || 0);
+    return { min: Math.min(...amounts), max: Math.max(...amounts) };
+  }, [jobs]);
+
+  const categories = useMemo(() => {
+    const counts = new Map();
+    for (const job of jobs) {
+      const name = job.categories?.category_name || 'Uncategorized';
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    return [
+      { id: 'all', label: 'All jobs', count: jobs.length },
+      ...Array.from(counts.entries()).map(([label, count]) => ({ id: label, label, count })),
+    ];
+  }, [jobs]);
 
   function resetFilters() {
-    setAvailability('Full-time');
-    setSalary(DEFAULT_SALARY);
-    setExperience(DEFAULT_EXPERIENCE);
-    setActiveSkills([]);
+    setActiveCategory('all');
+    setQuery('');
+    setBudget(budgetBounds);
   }
 
-  const visibleFreelancers = useMemo(() => {
-    return freelancers.filter((f) => {
-      if (f.category !== activeCategory) return false;
-      if (f.price < salary.min || f.price > salary.max) return false;
-      if (f.experienceYears < experience.min || f.experienceYears > experience.max) return false;
-      if (activeSkills.length && !activeSkills.some((s) => f.skills.includes(s))) return false;
+  const visibleJobs = useMemo(() => {
+    if (!budget) return [];
+    return jobs.filter((job) => {
+      const categoryName = job.categories?.category_name || 'Uncategorized';
+      if (activeCategory !== 'all' && categoryName !== activeCategory) return false;
+
+      const jobBudget = Number(job.budget) || 0;
+      if (jobBudget < budget.min || jobBudget > budget.max) return false;
+
       if (query.trim()) {
         const q = query.trim().toLowerCase();
-        const haystack = `${f.name} ${f.role} ${f.serviceTitle}`.toLowerCase();
+        const haystack = `${job.title || ''} ${job.description || ''}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
+
       return true;
     });
-  }, [activeCategory, salary, experience, activeSkills, query]);
+  }, [jobs, activeCategory, budget, query]);
 
   return (
     <div className="min-h-screen bg-bg text-text">
@@ -82,7 +117,7 @@ export default function Explore() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search freelancers or services"
+            placeholder="Search jobs by title or description"
             className="w-full rounded-md border border-border bg-surface py-2.5 pl-9 pr-3 text-sm outline-none placeholder:text-text-secondary focus:border-accent transition-colors"
           />
         </div>
@@ -93,25 +128,20 @@ export default function Explore() {
       </header>
 
       <div className="mx-auto flex max-w-[1400px] gap-6 px-5 py-6 md:px-8">
-        {filtersOpen && (
+        {filtersOpen && budget && (
           <FiltersSidebar
-            availability={availability}
-            setAvailability={setAvailability}
-            salary={salary}
-            setSalary={setSalary}
-            experience={experience}
-            setExperience={setExperience}
-            activeSkills={activeSkills}
-            toggleSkill={toggleSkill}
+            budget={budget}
+            setBudget={setBudget}
+            budgetBounds={budgetBounds}
             resetFilters={resetFilters}
-            resultCount={visibleFreelancers.length}
+            resultCount={visibleJobs.length}
             onClose={() => setFiltersOpen(false)}
           />
         )}
 
         <main className="min-w-0 flex-1">
           <div className="mb-6 flex items-baseline justify-between">
-            <h1 className="font-display text-3xl font-semibold tracking-tight">Explore</h1>
+            <h1 className="font-display text-3xl font-semibold tracking-tight">Explore jobs</h1>
           </div>
 
           <nav className="mb-6 flex gap-6 overflow-x-auto border-b border-border pb-3 text-[15px]">
@@ -120,9 +150,7 @@ export default function Explore() {
                 key={c.id}
                 onClick={() => setActiveCategory(c.id)}
                 className={`shrink-0 whitespace-nowrap transition-colors ${
-                  activeCategory === c.id
-                    ? 'font-semibold text-text'
-                    : 'text-text-secondary hover:text-text'
+                  activeCategory === c.id ? 'font-semibold text-text' : 'text-text-secondary hover:text-text'
                 }`}
               >
                 {c.label} <span className="text-text-secondary">({c.count})</span>
@@ -130,32 +158,29 @@ export default function Explore() {
             ))}
           </nav>
 
-          {visibleFreelancers.length === 0 ? (
-            <div className="rounded-lg border border-border bg-panel p-10 text-center">
-              <p className="font-display text-lg font-medium">No freelancers match those filters</p>
-              <p className="mt-1 text-sm text-text-secondary">
-                Try widening the salary range or clearing a skill tag.
-              </p>
-              <button
-                onClick={resetFilters}
-                className="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium hover:border-accent/40"
-              >
-                Reset filters
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {visibleFreelancers.map((f) => (
-                <FreelancerCard
-                  key={f.id}
-                  freelancer={f}
-                  isSaved={saved.has(f.id)}
-                  onToggleSave={() => toggleSaved(f.id)}
-                  onOpen={() => navigate(`/explore/${f.id}`)}
-                />
-              ))}
+          {loading && <StateCard title="Loading jobs…" />}
 
-              <PromoCard />
+          {!loading && loadError && (
+            <StateCard
+              title="Couldn't load jobs"
+              body={loadError}
+              action={{ label: 'Try again', onClick: () => window.location.reload() }}
+            />
+          )}
+
+          {!loading && !loadError && visibleJobs.length === 0 && (
+            <StateCard
+              title="No jobs match those filters"
+              body="Try widening the budget range or clearing your search."
+              action={{ label: 'Reset filters', onClick: resetFilters }}
+            />
+          )}
+
+          {!loading && !loadError && visibleJobs.length > 0 && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {visibleJobs.map((job) => (
+                <JobCard key={job.job_id} job={job} onOpen={() => navigate(`/explore/${job.job_id}`)} />
+              ))}
             </div>
           )}
         </main>
@@ -164,19 +189,7 @@ export default function Explore() {
   );
 }
 
-function FiltersSidebar({
-  availability,
-  setAvailability,
-  salary,
-  setSalary,
-  experience,
-  setExperience,
-  activeSkills,
-  toggleSkill,
-  resetFilters,
-  resultCount,
-  onClose,
-}) {
+function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultCount, onClose }) {
   return (
     <aside className="hidden w-[280px] shrink-0 md:block">
       <div className="flex items-center justify-between">
@@ -191,70 +204,14 @@ function FiltersSidebar({
       </div>
 
       <div className="mt-5 space-y-5">
-        <FieldSelect label="Category" value="UI/UX Design" />
-
-        <div>
-          <label className="mb-1.5 block text-[13px] font-medium text-text-secondary">Availability</label>
-          <div className="relative">
-            <select
-              value={availability}
-              onChange={(e) => setAvailability(e.target.value)}
-              className="w-full appearance-none rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent transition-colors"
-            >
-              <option>Full-time</option>
-              <option>Part-Time</option>
-              <option>Project work</option>
-            </select>
-            <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
-          </div>
-        </div>
-
         <RangeField
-          label="Salary"
+          label="Budget"
           unit="$"
-          value={salary}
-          onChange={setSalary}
-          bounds={{ min: 0, max: 500 }}
-          onReset={() => setSalary(DEFAULT_SALARY)}
+          value={budget}
+          onChange={setBudget}
+          bounds={budgetBounds}
+          onReset={() => setBudget(budgetBounds)}
         />
-
-        <RangeField
-          label="Years experience"
-          value={experience}
-          onChange={setExperience}
-          bounds={{ min: 0, max: 10 }}
-          onReset={() => setExperience(DEFAULT_EXPERIENCE)}
-        />
-
-        <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-[13px] font-medium text-text-secondary">Skills</span>
-            <button
-              onClick={() => activeSkills.forEach((s) => toggleSkill(s))}
-              className="text-[13px] font-medium text-accent hover:underline"
-            >
-              Reset
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {skillOptions.map((skill) => {
-              const active = activeSkills.includes(skill);
-              return (
-                <button
-                  key={skill}
-                  onClick={() => toggleSkill(skill)}
-                  className={`rounded-full border px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                    active
-                      ? 'border-accent bg-accent text-[#1A1305]'
-                      : 'border-border text-text-secondary hover:border-accent/40 hover:text-text'
-                  }`}
-                >
-                  {skill}
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         <div className="space-y-2 pt-2">
           <button className="w-full rounded-md bg-accent py-3 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover">
@@ -269,24 +226,6 @@ function FiltersSidebar({
         </div>
       </div>
     </aside>
-  );
-}
-
-function FieldSelect({ label, value }) {
-  return (
-    <div>
-      <label className="mb-1.5 block text-[13px] font-medium text-text-secondary">{label}</label>
-      <div className="relative">
-        <select
-          value={value}
-          onChange={() => {}}
-          className="w-full appearance-none rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent transition-colors"
-        >
-          <option>{value}</option>
-        </select>
-        <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
-      </div>
-    </div>
   );
 }
 
@@ -331,91 +270,66 @@ function RangeField({ label, unit, value, onChange, bounds, onReset }) {
   );
 }
 
-function FreelancerCard({ freelancer, isSaved, onToggleSave, onOpen }) {
-  const f = freelancer;
+function JobCard({ job, onOpen }) {
+  const categoryName = job.categories?.category_name || 'Uncategorized';
+  const posted = formatDate(job.created_at);
+
   return (
     <div className="flex flex-col rounded-lg border border-border bg-panel p-5 transition-colors hover:border-accent/40">
-      <div className="mb-3 flex items-start justify-between">
-        <button onClick={onOpen} className="flex items-center gap-3 text-left">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-sm font-semibold text-[#1A1305]"
-            style={{ backgroundColor: `hsl(${f.hue} 70% 65%)` }}
-          >
-            {f.initials}
-          </div>
-          <div>
-            <p className="text-[15px] font-medium leading-tight">{f.name}</p>
-            <p className="text-[13px] text-text-secondary">{f.role}</p>
-          </div>
-        </button>
-
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 text-[13px] font-medium text-text-secondary">
-            <StarIcon className="h-3.5 w-3.5 text-accent" />
-            {f.rating} <span className="text-text-secondary">({f.reviews})</span>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <span className="rounded-full border border-border px-2.5 py-1 text-[12px] text-text-secondary">
+          {categoryName}
+        </span>
+        {posted && (
+          <span className="flex shrink-0 items-center gap-1.5 text-[12px] text-text-secondary">
+            <ClockIcon className="h-3.5 w-3.5" />
+            {posted}
           </span>
-          <button
-            onClick={onToggleSave}
-            aria-label={isSaved ? 'Remove bookmark' : 'Save freelancer'}
-            className={`transition-colors ${isSaved ? 'text-accent' : 'text-text-secondary hover:text-text'}`}
-          >
-            <BookmarkIcon filled={isSaved} className="h-4.5 w-4.5" />
-          </button>
-        </div>
+        )}
       </div>
 
-      <button onClick={onOpen} className="mb-3 flex items-start justify-between gap-3 text-left">
-        <span className="font-display text-lg font-medium leading-snug">{f.serviceTitle}</span>
-        <span className="shrink-0 text-[13px] text-text-secondary">
-          from <span className="font-display text-lg font-semibold text-text">${f.price}</span>
-        </span>
+      <button onClick={onOpen} className="mb-2 text-left">
+        <span className="font-display text-lg font-medium leading-snug">{job.title || 'Untitled job'}</span>
       </button>
 
-      <div className="mb-3 flex flex-wrap gap-2">
-        <span className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[12px] text-text-secondary">
-          <ExperienceIcon className="h-3.5 w-3.5" />
-          {f.experienceYears} years exp
-        </span>
-        <span className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[12px] text-text-secondary">
-          <ClockIcon className="h-3.5 w-3.5" />
-          {f.workType}
-        </span>
-      </div>
+      <p className="mb-4 text-[13px] font-medium text-text-secondary">
+        Budget: <span className="font-display text-base font-semibold text-text">${job.budget ?? '—'}</span>
+      </p>
 
-      <p className="mb-4 line-clamp-3 text-[13px] leading-relaxed text-text-secondary">{f.description}</p>
+      <p className="mb-4 line-clamp-3 text-[13px] leading-relaxed text-text-secondary">
+        {job.description || 'No description provided.'}
+      </p>
 
       <button
         onClick={onOpen}
         className="mt-auto rounded-md border border-border py-2.5 text-[13px] font-medium transition-colors hover:border-accent/40 hover:text-accent"
       >
-        View profile
+        View & apply
       </button>
     </div>
   );
 }
 
-function PromoCard() {
+function StateCard({ title, body, action }) {
   return (
-    <div className="relative flex min-h-[220px] flex-col justify-end overflow-hidden rounded-lg border border-border p-6 sm:col-span-2 xl:col-span-1">
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(120% 140% at 20% 0%, #3a2a12 0%, #17130c 55%, #10131A 100%)',
-        }}
-      />
-      <div
-        className="absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-70 blur-2xl"
-        style={{ background: 'radial-gradient(circle, #E7B24B, transparent 70%)' }}
-      />
-      <div className="relative">
-        <p className="font-display text-xl font-semibold leading-snug text-text">
-          Connecting you with trusted freelancers, fast.
-        </p>
-        <p className="mt-2 text-[13px] text-text-secondary">
-          Post a job or browse profiles — RaketBase handles the rest.
-        </p>
-      </div>
+    <div className="rounded-lg border border-border bg-panel p-10 text-center">
+      <p className="font-display text-lg font-medium">{title}</p>
+      {body && <p className="mt-1 text-sm text-text-secondary">{body}</p>}
+      {action && (
+        <button
+          onClick={action.onClick}
+          className="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium hover:border-accent/40"
+        >
+          {action.label}
+        </button>
+      )}
     </div>
   );
+}
+
+function formatDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }

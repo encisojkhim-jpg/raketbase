@@ -5,7 +5,7 @@ exports.createProposal = async (req, res) => {
   try {
     const { job_id, bid_amount, cover_letter } = req.body;
     // req.user is appended by Member 2's JWT auth middleware
-    const freelancer_id = req.user.user_id; 
+    const freelancer_id = req.user.id;
 
     if (!job_id || !bid_amount || !cover_letter) {
       return res.status(400).json({
@@ -39,7 +39,7 @@ exports.createProposal = async (req, res) => {
 // GET /api/v1/proposals/me - Get proposals submitted by the logged-in freelancer
 exports.getMyProposals = async (req, res) => {
   try {
-    const freelancer_id = req.user.user_id;
+    const freelancer_id = req.user.id;
 
     const { data: proposals, error } = await supabase
       .from('proposals')

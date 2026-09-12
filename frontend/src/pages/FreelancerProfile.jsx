@@ -1,224 +1,224 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { getFreelancerById } from '../data/mockFreelancers';
-import { ArrowLeftIcon, BookmarkIcon, PlusIcon, SendIcon, ShareIcon, StarIcon } from '../components/Icons';
+// TODO: adjust this path to wherever your Supabase client lives
+// (the same one Login.jsx uses for supabase.auth.signInWithPassword).
+import { supabase } from '../config/supabaseClient';
+import { ArrowLeftIcon, ClockIcon } from '../components/Icons';
 
-const SERVICE_TABS = ['Graphic design', 'Branding', 'Package', 'Web design'];
-
-const SEED_MESSAGES = [
-  { id: 1, from: 'client', text: 'Hello! I need to create a cover for my album. Can you design something like this?', time: '11:31am' },
-  { id: 2, from: 'freelancer', text: "Of course! I'd love to help. What's the vibe or concept you're going for?", time: '11:32am' },
-  { id: 3, from: 'client', text: "It's an indie/folk album. I want something earthy and nostalgic — maybe with warm tones and some vintage textures.", time: '11:32am' },
-];
-
-const AUTO_REPLY = "Got it, thanks for the detail! I'll put together a couple of concept directions and send them over shortly.";
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 export default function FreelancerProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const freelancer = getFreelancerById(id);
 
-  const [activeTab, setActiveTab] = useState(SERVICE_TABS[0]);
-  const [saved, setSaved] = useState(false);
-  const [messages, setMessages] = useState(SEED_MESSAGES);
-  const [draft, setDraft] = useState('');
-  const scrollRef = useRef(null);
+  const [job, setJob] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+
+  const [bidAmount, setBidAmount] = useState('');
+  const [coverLetter, setCoverLetter] = useState('');
+  const [formErrors, setFormErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitResult, setSubmitResult] = useState(null); // { type: 'success' | 'error', message }
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
+    let cancelled = false;
 
-  if (!freelancer) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-bg text-text">
-        <p className="text-text-secondary">That freelancer profile doesn't exist.</p>
-        <Link to="/explore" className="text-accent font-medium hover:underline">
-          Back to Explore
-        </Link>
-      </div>
-    );
+    async function loadJob() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const res = await fetch(`${API_BASE_URL}/jobs/${id}`);
+        const body = await res.json();
+        if (!res.ok || !body.success) {
+          throw new Error(body.error || 'Job not found.');
+        }
+        if (!cancelled) setJob(body.data);
+      } catch (err) {
+        if (!cancelled) setLoadError(err.message || 'Could not load this job.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadJob();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  function validate() {
+    const errors = {};
+    const amount = Number(bidAmount);
+
+    if (!bidAmount.trim() || Number.isNaN(amount) || amount <= 0) {
+      errors.bidAmount = 'Enter a bid amount greater than 0.';
+    }
+    if (!coverLetter.trim()) {
+      errors.coverLetter = 'A cover letter is required.';
+    } else if (coverLetter.trim().length < 20) {
+      errors.coverLetter = `Write a bit more — ${20 - coverLetter.trim().length} characters to go.`;
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   }
 
-  function sendMessage(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    const text = draft.trim();
-    if (!text) return;
+    setSubmitResult(null);
+    if (!validate()) return;
 
-    const now = timeNow();
-    setMessages((prev) => [...prev, { id: prev.length + 1, from: 'client', text, time: now }]);
-    setDraft('');
+    setSubmitting(true);
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (sessionError || !token) {
+        throw new Error('You need to be logged in to submit a proposal.');
+      }
 
-    window.setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        { id: prev.length + 1, from: 'freelancer', text: AUTO_REPLY, time: timeNow() },
-      ]);
-    }, 900);
+      const res = await fetch(`${API_BASE_URL}/proposals`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          job_id: job.job_id,
+          bid_amount: Number(bidAmount),
+          cover_letter: coverLetter.trim(),
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.success) {
+        throw new Error(body.error || 'Could not submit your proposal.');
+      }
+
+      setSubmitResult({ type: 'success', message: 'Proposal sent. The client will review it soon.' });
+      setBidAmount('');
+      setCoverLetter('');
+    } catch (err) {
+      setSubmitResult({ type: 'error', message: err.message || 'Something went wrong.' });
+    } finally {
+      setSubmitting(false);
+    }
   }
-
-  const portfolio = freelancer.portfolio || [
-    { id: 1, label: 'Project one', hue: freelancer.hue },
-    { id: 2, label: 'Project two', hue: (freelancer.hue + 40) % 360 },
-    { id: 3, label: 'Project three', hue: (freelancer.hue + 80) % 360 },
-    { id: 4, label: 'Project four', hue: (freelancer.hue + 120) % 360 },
-  ];
 
   return (
-    <div className="flex h-screen flex-col bg-bg text-text">
-      <header className="flex items-center gap-3 border-b border-border px-5 py-4 md:px-8">
+    <div className="min-h-screen bg-bg text-text">
+      <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-border bg-bg/95 px-5 py-4 backdrop-blur md:px-8">
         <button
-          onClick={() => navigate('/explore')}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary hover:text-text"
-          aria-label="Back to Explore"
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-[13px] font-medium text-text-secondary hover:text-text"
         >
           <ArrowLeftIcon className="h-4 w-4" />
+          Back
         </button>
-        <span className="font-display text-lg font-semibold tracking-tight">RaketBase</span>
+        <Link to="/dashboard" className="ml-auto font-display text-xl font-semibold tracking-tight">
+          RaketBase
+        </Link>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-8">
-          <div className="mb-6 flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <div
-                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full font-display text-xl font-semibold text-[#1A1305]"
-                style={{ backgroundColor: `hsl(${freelancer.hue} 70% 65%)` }}
-              >
-                {freelancer.initials}
-              </div>
-              <div>
-                <h1 className="font-display text-2xl font-semibold">{freelancer.name}</h1>
-                <p className="text-text-secondary">
-                  {freelancer.role}
-                  {freelancer.role.toLowerCase() !== 'designer' ? ', illustrator' : ''}
-                </p>
-                <span className="mt-1 inline-flex items-center gap-1 text-[13px] font-medium text-text-secondary">
-                  <StarIcon className="h-3.5 w-3.5 text-accent" />
-                  {freelancer.rating} ({freelancer.reviews})
-                </span>
-              </div>
-            </div>
+      <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
+        {loading && <p className="text-text-secondary">Loading job…</p>}
 
-            <div className="flex items-center gap-2">
-              <button className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-text-secondary hover:text-text">
-                <ShareIcon className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setSaved((v) => !v)}
-                className={`flex h-9 w-9 items-center justify-center rounded-full border border-border transition-colors ${
-                  saved ? 'text-accent' : 'text-text-secondary hover:text-text'
-                }`}
-              >
-                <BookmarkIcon filled={saved} className="h-4 w-4" />
-              </button>
-            </div>
+        {!loading && loadError && (
+          <div className="rounded-lg border border-border bg-panel p-10 text-center">
+            <p className="font-display text-lg font-medium">Couldn't load this job</p>
+            <p className="mt-1 text-sm text-text-secondary">{loadError}</p>
           </div>
+        )}
 
-          <div className="mb-6 flex gap-6 overflow-x-auto border-b border-border text-[15px]">
-            {SERVICE_TABS.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`shrink-0 whitespace-nowrap border-b-2 pb-3 transition-colors ${
-                  activeTab === tab
-                    ? 'border-accent font-semibold text-text'
-                    : 'border-transparent text-text-secondary hover:text-text'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          <div className="mb-8 grid grid-cols-1 gap-6 rounded-lg border border-border bg-panel p-6 sm:grid-cols-2">
-            <div className="space-y-4">
-              <Stat label="Cost of service" value={`$${freelancer.costOfService}`} />
-              <Stat label="Revisions" value={freelancer.revisions} />
-              <Stat label="Deadlines" value={freelancer.deadline} />
-            </div>
+        {!loading && !loadError && job && (
+          <div className="grid gap-6 md:grid-cols-[1fr_340px]">
             <div>
-              <p className="mb-1 text-[13px] font-medium text-text-secondary">About</p>
-              <p className="font-display text-lg font-medium leading-relaxed">{freelancer.description}</p>
+              <span className="rounded-full border border-border px-2.5 py-1 text-[12px] text-text-secondary">
+                {job.categories?.category_name || 'Uncategorized'}
+              </span>
+
+              <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight">
+                {job.title || 'Untitled job'}
+              </h1>
+
+              <p className="mt-2 flex items-center gap-1.5 text-[13px] text-text-secondary">
+                <ClockIcon className="h-3.5 w-3.5" />
+                Posted {formatDate(job.created_at)}
+                {job.users && ` by ${job.users.first_name} ${job.users.last_name}`}
+              </p>
+
+              <p className="mt-6 whitespace-pre-line text-[15px] leading-relaxed text-text-secondary">
+                {job.description || 'No description provided.'}
+              </p>
             </div>
-          </div>
 
-          <h2 className="mb-4 font-display text-xl font-semibold">Portfolio</h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {portfolio.map((item) => (
-              <div
-                key={item.id}
-                className="flex aspect-square items-end rounded-lg p-3"
-                style={{
-                  background: `linear-gradient(155deg, hsl(${item.hue} 55% 30%), hsl(${item.hue} 45% 12%))`,
-                }}
-              >
-                <span className="text-[12px] font-medium text-white/85">{item.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+            <aside className="h-fit rounded-lg border border-border bg-panel p-5">
+              <p className="text-[13px] font-medium text-text-secondary">Budget</p>
+              <p className="font-display text-2xl font-semibold">${job.budget ?? '—'}</p>
 
-        <aside className="flex min-h-0 w-full flex-col border-t border-border md:w-[380px] md:border-l md:border-t-0">
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <h2 className="font-display text-lg font-semibold">Chat</h2>
-          </div>
-
-          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
-            <p className="mb-1 text-center text-[12px] text-text-secondary">Thu, 7 May</p>
-            {messages.map((m) => (
-              <div key={m.id} className={`flex flex-col ${m.from === 'client' ? 'items-end' : 'items-start'}`}>
-                <div
-                  className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
-                    m.from === 'client'
-                      ? 'bg-accent text-[#1A1305]'
-                      : 'border border-border bg-surface text-text'
-                  }`}
-                >
-                  {m.text}
+              <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-text-secondary">
+                    Your bid ($)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={bidAmount}
+                    onChange={(e) => setBidAmount(e.target.value)}
+                    className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+                    placeholder="e.g. 120"
+                  />
+                  {formErrors.bidAmount && (
+                    <p className="mt-1 text-[12px] text-red-400">{formErrors.bidAmount}</p>
+                  )}
                 </div>
-                <span className="mt-1 text-[11px] text-text-secondary">{m.time}</span>
-              </div>
-            ))}
-          </div>
 
-          <form onSubmit={sendMessage} className="flex items-center gap-2 border-t border-border p-3">
-            <button
-              type="button"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-text-secondary hover:text-text"
-              aria-label="Attach a file"
-            >
-              <PlusIcon className="h-4 w-4" />
-            </button>
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Your message"
-              className="flex-1 rounded-full border border-border bg-surface px-4 py-2.5 text-sm outline-none placeholder:text-text-secondary focus:border-accent"
-            />
-            <button
-              type="submit"
-              disabled={!draft.trim()}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-[#1A1305] transition-colors hover:bg-accent-hover disabled:bg-border disabled:text-text-secondary"
-              aria-label="Send message"
-            >
-              <SendIcon className="h-4 w-4" />
-            </button>
-          </form>
-        </aside>
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-text-secondary">
+                    Cover letter
+                  </label>
+                  <textarea
+                    value={coverLetter}
+                    onChange={(e) => setCoverLetter(e.target.value)}
+                    rows={6}
+                    className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+                    placeholder="Explain why you're a good fit for this job."
+                  />
+                  {formErrors.coverLetter && (
+                    <p className="mt-1 text-[12px] text-red-400">{formErrors.coverLetter}</p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full rounded-md bg-accent py-3 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover disabled:opacity-60"
+                >
+                  {submitting ? 'Submitting…' : 'Submit proposal'}
+                </button>
+
+                {submitResult && (
+                  <p
+                    className={`text-[13px] ${
+                      submitResult.type === 'success' ? 'text-accent' : 'text-red-400'
+                    }`}
+                  >
+                    {submitResult.message}
+                  </p>
+                )}
+              </form>
+            </aside>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function Stat({ label, value }) {
-  return (
-    <div>
-      <p className="text-[13px] text-text-secondary">{label}</p>
-      <p className="font-display text-lg font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function timeNow() {
-  return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+function formatDate(value) {
+  if (!value) return 'recently';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'recently';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
