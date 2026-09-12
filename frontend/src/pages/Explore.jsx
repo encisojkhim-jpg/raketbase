@@ -1,23 +1,30 @@
+// Explore.jsx — Job & Marketplace Discovery with Dynamic Filters (Paula + Kyle)
+// Features:
+// 1. Shared Navbar with navigable logo and interactive user profile dropdown
+// 2. Interactive category pills, search bar, budget range slider, and job cards
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ChevronDownIcon, CloseIcon, ClockIcon, SearchIcon } from '../components/Icons';
+import { useNavigate } from 'react-router-dom';
+import Navbar from '../components/Navbar';
+import { CloseIcon, ClockIcon } from '../components/Icons';
 
-// TODO: point this at your actual backend port if it isn't 5000,
-// or set VITE_API_URL in a .env file in frontend/.
+// Configurable API base URL, defaulting to local backend port 5000
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 export default function Explore() {
   const navigate = useNavigate();
 
+  // State management for jobs data, loading indicator, and fetch errors
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
+  // Filter state: active category pill, search query text, sidebar visibility, and budget range
   const [activeCategory, setActiveCategory] = useState('all');
   const [query, setQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(true);
-  const [budget, setBudget] = useState(null); // set once jobs load, from real min/max
+  const [budget, setBudget] = useState(null);
 
+  // Fetch all open jobs on mount and compute dynamic budget bounds
   useEffect(() => {
     let cancelled = false;
 
@@ -35,6 +42,7 @@ export default function Explore() {
         const data = body.data || [];
         setJobs(data);
 
+        // Calculate dynamic minimum and maximum budget from actual database listings
         if (data.length) {
           const amounts = data.map((j) => Number(j.budget) || 0);
           setBudget({ min: Math.min(...amounts), max: Math.max(...amounts) });
@@ -54,79 +62,73 @@ export default function Explore() {
     };
   }, []);
 
+  // Compute fixed budget boundaries across all loaded jobs
   const budgetBounds = useMemo(() => {
-    if (!jobs.length) return { min: 0, max: 1000 };
+    if (!jobs.length) return { min: 0, max: 0 };
     const amounts = jobs.map((j) => Number(j.budget) || 0);
     return { min: Math.min(...amounts), max: Math.max(...amounts) };
   }, [jobs]);
 
+  // Aggregate job counts per category for the filter pill bar
   const categories = useMemo(() => {
-    const counts = new Map();
-    for (const job of jobs) {
-      const name = job.categories?.category_name || 'Uncategorized';
-      counts.set(name, (counts.get(name) || 0) + 1);
+    const counts = {};
+    for (const j of jobs) {
+      const name = j.categories?.category_name || 'Other';
+      counts[name] = (counts[name] || 0) + 1;
     }
-    return [
-      { id: 'all', label: 'All jobs', count: jobs.length },
-      ...Array.from(counts.entries()).map(([label, count]) => ({ id: label, label, count })),
-    ];
+    const list = Object.entries(counts).map(([name, count]) => ({
+      id: name.toLowerCase().replace(/\s+/g, '-'),
+      name,
+      label: name,
+      count,
+    }));
+    return [{ id: 'all', name: 'All', label: 'All', count: jobs.length }, ...list];
   }, [jobs]);
 
+  // Apply multi-factor client filtering (category, search query, budget range)
+  const visibleJobs = useMemo(() => {
+    return jobs.filter((j) => {
+      // Filter by selected category pill
+      if (activeCategory !== 'all') {
+        const catName = (j.categories?.category_name || 'Other').toLowerCase().replace(/\s+/g, '-');
+        if (catName !== activeCategory) return false;
+      }
+      // Filter by keyword query against title and description
+      if (query.trim()) {
+        const q = query.toLowerCase();
+        const inTitle = j.title?.toLowerCase().includes(q);
+        const inDesc = j.description?.toLowerCase().includes(q);
+        if (!inTitle && !inDesc) return false;
+      }
+      // Filter by user-selected budget slider bounds
+      if (budget) {
+        const amount = Number(j.budget) || 0;
+        if (amount < budget.min || amount > budget.max) return false;
+      }
+      return true;
+    });
+  }, [jobs, activeCategory, query, budget]);
+
+  // Reset all filters back to default full-catalog view
   function resetFilters() {
     setActiveCategory('all');
     setQuery('');
     setBudget(budgetBounds);
   }
 
-  const visibleJobs = useMemo(() => {
-    if (!budget) return [];
-    return jobs.filter((job) => {
-      const categoryName = job.categories?.category_name || 'Uncategorized';
-      if (activeCategory !== 'all' && categoryName !== activeCategory) return false;
-
-      const jobBudget = Number(job.budget) || 0;
-      if (jobBudget < budget.min || jobBudget > budget.max) return false;
-
-      if (query.trim()) {
-        const q = query.trim().toLowerCase();
-        const haystack = `${job.title || ''} ${job.description || ''}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-
-      return true;
-    });
-  }, [jobs, activeCategory, budget, query]);
-
   return (
     <div className="min-h-screen bg-bg text-text">
-      <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-border bg-bg/95 px-5 py-4 backdrop-blur md:px-8">
-        <Link to="/dashboard" className="font-display text-xl font-semibold tracking-tight">
-          RaketBase
-        </Link>
+      {/* Shared Navigable Navbar with interactive profile menu and search */}
+      <Navbar
+        showSearch
+        searchQuery={query}
+        setSearchQuery={setQuery}
+        showFilters
+        filtersOpen={filtersOpen}
+        setFiltersOpen={setFiltersOpen}
+      />
 
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((v) => !v)}
-          className="ml-1 hidden items-center gap-2 rounded-md border border-border px-3 py-2 text-[13px] font-medium text-text-secondary hover:border-accent/40 hover:text-text md:flex"
-        >
-          {filtersOpen ? 'Hide filters' : 'Show filters'}
-        </button>
-
-        <div className="relative ml-auto w-full max-w-sm">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search jobs by title or description"
-            className="w-full rounded-md border border-border bg-surface py-2.5 pl-9 pr-3 text-sm outline-none placeholder:text-text-secondary focus:border-accent transition-colors"
-          />
-        </div>
-
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent font-display text-sm font-semibold text-[#1A1305]">
-          U
-        </div>
-      </header>
-
+      {/* Main page layout: sidebar filters + responsive jobs grid */}
       <div className="mx-auto flex max-w-[1400px] gap-6 px-5 py-6 md:px-8">
         {filtersOpen && budget && (
           <FiltersSidebar
@@ -144,12 +146,13 @@ export default function Explore() {
             <h1 className="font-display text-3xl font-semibold tracking-tight">Explore jobs</h1>
           </div>
 
+          {/* Horizontal scrollable category pill list */}
           <nav className="mb-6 flex gap-6 overflow-x-auto border-b border-border pb-3 text-[15px]">
             {categories.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setActiveCategory(c.id)}
-                className={`shrink-0 whitespace-nowrap transition-colors ${
+                className={`shrink-0 whitespace-nowrap transition-colors cursor-pointer ${
                   activeCategory === c.id ? 'font-semibold text-text' : 'text-text-secondary hover:text-text'
                 }`}
               >
@@ -158,7 +161,8 @@ export default function Explore() {
             ))}
           </nav>
 
-          {loading && <StateCard title="Loading jobs…" />}
+          {/* Conditional state displays: loading, error, empty search, or job grid */}
+          {loading && <StateCard title="Loading jobs..." />}
 
           {!loading && loadError && (
             <StateCard
@@ -189,6 +193,7 @@ export default function Explore() {
   );
 }
 
+// Sidebar component with interactive range inputs and reset actions
 function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultCount, onClose }) {
   return (
     <aside className="hidden w-[280px] shrink-0 md:block">
@@ -196,7 +201,7 @@ function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultC
         <h2 className="font-display text-xl font-semibold">Filters</h2>
         <button
           onClick={onClose}
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-text-secondary hover:text-text"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-text-secondary hover:text-text cursor-pointer"
           aria-label="Hide filters"
         >
           <CloseIcon className="h-4 w-4" />
@@ -206,7 +211,7 @@ function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultC
       <div className="mt-5 space-y-5">
         <RangeField
           label="Budget"
-          unit="$"
+          unit="₱"
           value={budget}
           onChange={setBudget}
           bounds={budgetBounds}
@@ -214,12 +219,12 @@ function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultC
         />
 
         <div className="space-y-2 pt-2">
-          <button className="w-full rounded-md bg-accent py-3 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover">
+          <button className="w-full rounded-md bg-accent py-3 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer">
             Show {resultCount} results
           </button>
           <button
             onClick={resetFilters}
-            className="w-full rounded-md border border-border py-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-text"
+            className="w-full rounded-md border border-border py-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-text cursor-pointer"
           >
             Reset all
           </button>
@@ -229,12 +234,13 @@ function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultC
   );
 }
 
+// Reusable numeric range slider and min/max inputs
 function RangeField({ label, unit, value, onChange, bounds, onReset }) {
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
         <span className="text-[13px] font-medium text-text-secondary">{label}</span>
-        <button onClick={onReset} className="text-[13px] font-medium text-accent hover:underline">
+        <button onClick={onReset} className="text-[13px] font-medium text-accent hover:underline cursor-pointer">
           Reset
         </button>
       </div>
@@ -270,6 +276,7 @@ function RangeField({ label, unit, value, onChange, bounds, onReset }) {
   );
 }
 
+// Individual card component representing an open job posting
 function JobCard({ job, onOpen }) {
   const categoryName = job.categories?.category_name || 'Uncategorized';
   const posted = formatDate(job.created_at);
@@ -288,12 +295,14 @@ function JobCard({ job, onOpen }) {
         )}
       </div>
 
-      <button onClick={onOpen} className="mb-2 text-left">
-        <span className="font-display text-lg font-medium leading-snug">{job.title || 'Untitled job'}</span>
+      <button onClick={onOpen} className="mb-2 text-left cursor-pointer">
+        <span className="font-display text-lg font-medium leading-snug hover:text-accent transition-colors">
+          {job.title || 'Untitled job'}
+        </span>
       </button>
 
       <p className="mb-4 text-[13px] font-medium text-text-secondary">
-        Budget: <span className="font-display text-base font-semibold text-text">${job.budget ?? '—'}</span>
+        Budget: <span className="font-sans text-base font-semibold text-text">₱{job.budget ? Number(job.budget).toLocaleString() : '—'}</span>
       </p>
 
       <p className="mb-4 line-clamp-3 text-[13px] leading-relaxed text-text-secondary">
@@ -302,7 +311,7 @@ function JobCard({ job, onOpen }) {
 
       <button
         onClick={onOpen}
-        className="mt-auto rounded-md border border-border py-2.5 text-[13px] font-medium transition-colors hover:border-accent/40 hover:text-accent"
+        className="mt-auto rounded-md border border-border py-2.5 text-[13px] font-medium transition-colors hover:border-accent/40 hover:text-accent cursor-pointer"
       >
         View & apply
       </button>
@@ -310,6 +319,7 @@ function JobCard({ job, onOpen }) {
   );
 }
 
+// State feedback card (loading spinner, error message, or empty result banner)
 function StateCard({ title, body, action }) {
   return (
     <div className="rounded-lg border border-border bg-panel p-10 text-center">
@@ -318,7 +328,7 @@ function StateCard({ title, body, action }) {
       {action && (
         <button
           onClick={action.onClick}
-          className="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium hover:border-accent/40"
+          className="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium hover:border-accent/40 cursor-pointer"
         >
           {action.label}
         </button>
@@ -327,6 +337,7 @@ function StateCard({ title, body, action }) {
   );
 }
 
+// Date helper utility to format timestamp into human-friendly representation
 function formatDate(value) {
   if (!value) return null;
   const date = new Date(value);

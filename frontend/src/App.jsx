@@ -4,7 +4,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Explore from './pages/Explore';
 import FreelancerProfile from './pages/FreelancerProfile';
-import ProtectedRoute from './pages/ProtectedRoute'; 
+import ProtectedRoute from './pages/ProtectedRoute';
 
 function App() {
   return (
@@ -12,6 +12,10 @@ function App() {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+
+      {/* Redirect legacy /jobs routes to unified /explore */}
+      <Route path="/jobs" element={<Navigate to="/explore" replace />} />
+      <Route path="/jobs/:id" element={<Navigate to="/explore" replace />} />
 
       {/* Protected Routes */}
       <Route element={<ProtectedRoute />}>

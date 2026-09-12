@@ -16,9 +16,12 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const { token } = await loginUser({ email, password });
-      localStorage.setItem('token', token);
-      window.location.href = '/dashboard'; // p - change location
+      const res = await loginUser({ email, password });
+      localStorage.setItem('token', res.token);
+      if (res.user) {
+        localStorage.setItem('user', JSON.stringify(res.user));
+      }
+      window.location.href = '/dashboard';
     } catch (err) {
       setError(err.message);
       setLoading(false);
@@ -93,7 +96,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-accent hover:bg-accent-hover disabled:bg-border disabled:text-text-secondary text-[#1A1305] font-semibold text-sm py-3 rounded-md mt-2 transition-colors"
+              className="w-full bg-accent hover:bg-accent-hover disabled:bg-border disabled:text-text-secondary text-[#1A1305] font-semibold text-sm py-3 rounded-md mt-2 transition-colors cursor-pointer"
             >
               {loading ? 'Logging in...' : 'Log in'}
             </button>

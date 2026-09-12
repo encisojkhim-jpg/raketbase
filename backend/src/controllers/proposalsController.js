@@ -4,7 +4,7 @@ const { supabase } = require('../config/supabase');
 exports.createProposal = async (req, res) => {
   try {
     const { job_id, bid_amount, cover_letter } = req.body;
-    // req.user is appended by Member 2's JWT auth middleware
+    // req.user is appended by JWT auth middleware
     const freelancer_id = req.user.id;
 
     if (!job_id || !bid_amount || !cover_letter) {
@@ -32,6 +32,17 @@ exports.createProposal = async (req, res) => {
 
     return res.status(201).json({ success: true, data: proposal });
   } catch (error) {
+    // Catch Postgres error code 23505 (unique violation on job_id + freelancer_id)
+    if (
+      error.code === '23505' ||
+      error.message?.includes('proposals_job_id_freelancer_id_key') ||
+      error.message?.toLowerCase().includes('duplicate key')
+    ) {
+      return res.status(409).json({
+        success: false,
+        error: 'You have already submitted a proposal for this job.'
+      });
+    }
     return res.status(500).json({ success: false, error: error.message });
   }
 };
