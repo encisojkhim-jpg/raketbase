@@ -1,4 +1,4 @@
-const supabase = require('../config/supabase');
+const { supabase } = require('../config/supabase');
 
 // POST /api/v1/proposals - Submit a proposal for a job
 exports.createProposal = async (req, res) => {

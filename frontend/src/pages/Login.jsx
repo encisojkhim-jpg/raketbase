@@ -18,7 +18,7 @@ export default function Login() {
     try {
       const { token } = await loginUser({ email, password });
       localStorage.setItem('token', token);
-      window.location.href = '/dashboard';
+      window.location.href = '/dashboard'; // p - change location
     } catch (err) {
       setError(err.message);
       setLoading(false);
