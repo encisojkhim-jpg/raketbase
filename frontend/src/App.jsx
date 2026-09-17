@@ -1,6 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import Explore from './pages/Explore';
+import FreelancerProfile from './pages/FreelancerProfile';
+import ProtectedRoute from './pages/ProtectedRoute';
 
 function App() {
   return (
@@ -8,7 +12,19 @@ function App() {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      {/* other pages get added here */}
+
+      {/* Redirect legacy /jobs routes to unified /explore */}
+      <Route path="/jobs" element={<Navigate to="/explore" replace />} />
+      <Route path="/jobs/:id" element={<Navigate to="/explore" replace />} />
+
+      {/* Protected Routes */}
+      <Route element={<ProtectedRoute />}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/explore" element={<Explore />} />
+        <Route path="/explore/:id" element={<FreelancerProfile />} />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }

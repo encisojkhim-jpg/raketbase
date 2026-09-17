@@ -9,6 +9,7 @@ export default function Register() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState('customer'); // p - added customer role
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -17,7 +18,7 @@ export default function Register() {
     setError('');
     setLoading(true);
     try {
-      await registerUser({ firstName, lastName, email, password });
+      await registerUser({ firstName, lastName, email, password, role }); // p - added role
       navigate('/login?registered=1');
     } catch (err) {
       setError(err.message);
@@ -119,6 +120,22 @@ export default function Register() {
               />
               <div className="text-xs text-text-secondary mt-1.5">At least 6 characters.</div>
             </div>
+
+           <div className="mb-6">
+             <label className="block text-[13px] font-medium text-text-secondary mb-1.5" htmlFor="role">
+               I want to join as a:
+             </label>
+             <select
+               id="role"
+               value={role}
+               onChange={(e) => setRole(e.target.value)}
+               className="w-full bg-surface border border-border text-text px-3 py-2.5 rounded-md text-sm outline-none focus:border-accent transition-colors"
+             >
+               <option value="customer">Client / Freelancer</option>
+               <option value="staff">Platform Staff</option>
+               <option value="admin">Administrator</option>
+             </select>
+           </div>
 
             <button
               type="submit"
