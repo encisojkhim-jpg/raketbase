@@ -9,16 +9,28 @@ export default function Register() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('customer'); // p - added customer role
+  const [role, setRole] = useState('customer');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+
+    // Member 1 Validation Specifications
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return setError('Please enter a valid email address.');
+    }
+
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return setError('Password must be at least 8 characters long, include at least 1 uppercase letter and 1 number.');
+    }
+
     setLoading(true);
     try {
-      await registerUser({ firstName, lastName, email, password, role }); // p - added role
+      await registerUser({ firstName, lastName, email, password, role });
       navigate('/login?registered=1');
     } catch (err) {
       setError(err.message);
@@ -112,35 +124,33 @@ export default function Register() {
                 id="password"
                 type="password"
                 required
-                minLength={6}
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-surface border border-border text-text px-3 py-2.5 rounded-md text-sm outline-none focus:border-accent transition-colors"
               />
-              <div className="text-xs text-text-secondary mt-1.5">At least 6 characters.</div>
+              <div className="text-xs text-text-secondary mt-1.5">Min. 8 chars, 1 uppercase, 1 number.</div>
             </div>
 
-           <div className="mb-6">
-             <label className="block text-[13px] font-medium text-text-secondary mb-1.5" htmlFor="role">
-               I want to join as a:
-             </label>
-             <select
-               id="role"
-               value={role}
-               onChange={(e) => setRole(e.target.value)}
-               className="w-full bg-surface border border-border text-text px-3 py-2.5 rounded-md text-sm outline-none focus:border-accent transition-colors"
-             >
-               <option value="customer">Client / Freelancer</option>
-               <option value="staff">Platform Staff</option>
-               <option value="admin">Administrator</option>
-             </select>
-           </div>
+            <div className="mb-6">
+              <label className="block text-[13px] font-medium text-text-secondary mb-1.5" htmlFor="role">
+                I want to join as a:
+              </label>
+              <select
+                id="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full bg-surface border border-border text-text px-3 py-2.5 rounded-md text-sm outline-none focus:border-accent transition-colors"
+              >
+                <option value="customer">Client (Customer)</option>
+                <option value="freelancer">Freelancer</option>
+              </select>
+            </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-accent hover:bg-accent-hover disabled:bg-border disabled:text-text-secondary text-[#1A1305] font-semibold text-sm py-3 rounded-md mt-2 transition-colors"
+              className="w-full bg-accent hover:bg-accent-hover disabled:bg-border disabled:text-text-secondary text-[#1A1305] font-semibold text-sm py-3 rounded-md mt-2 transition-colors cursor-pointer"
             >
               {loading ? 'Creating account...' : 'Create account'}
             </button>

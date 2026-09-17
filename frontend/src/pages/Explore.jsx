@@ -1,30 +1,23 @@
-// Explore.jsx — Job & Marketplace Discovery with Dynamic Filters (Paula + Kyle)
-// Features:
-// 1. Shared Navbar with navigable logo and interactive user profile dropdown
-// 2. Interactive category pills, search bar, budget range slider, and job cards
+// Explore.jsx — Job & Marketplace Discovery with Dynamic Filters
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { CloseIcon, ClockIcon } from '../components/Icons';
 
-// Configurable API base URL, defaulting to local backend port 5000
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 export default function Explore() {
   const navigate = useNavigate();
 
-  // State management for jobs data, loading indicator, and fetch errors
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
-  // Filter state: active category pill, search query text, sidebar visibility, and budget range
   const [activeCategory, setActiveCategory] = useState('all');
   const [query, setQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [budget, setBudget] = useState(null);
 
-  // Fetch all open jobs on mount and compute dynamic budget bounds
   useEffect(() => {
     let cancelled = false;
 
@@ -42,7 +35,6 @@ export default function Explore() {
         const data = body.data || [];
         setJobs(data);
 
-        // Calculate dynamic minimum and maximum budget from actual database listings
         if (data.length) {
           const amounts = data.map((j) => Number(j.budget) || 0);
           setBudget({ min: Math.min(...amounts), max: Math.max(...amounts) });
@@ -62,14 +54,12 @@ export default function Explore() {
     };
   }, []);
 
-  // Compute fixed budget boundaries across all loaded jobs
   const budgetBounds = useMemo(() => {
     if (!jobs.length) return { min: 0, max: 0 };
     const amounts = jobs.map((j) => Number(j.budget) || 0);
     return { min: Math.min(...amounts), max: Math.max(...amounts) };
   }, [jobs]);
 
-  // Aggregate job counts per category for the filter pill bar
   const categories = useMemo(() => {
     const counts = {};
     for (const j of jobs) {
@@ -85,22 +75,18 @@ export default function Explore() {
     return [{ id: 'all', name: 'All', label: 'All', count: jobs.length }, ...list];
   }, [jobs]);
 
-  // Apply multi-factor client filtering (category, search query, budget range)
   const visibleJobs = useMemo(() => {
     return jobs.filter((j) => {
-      // Filter by selected category pill
       if (activeCategory !== 'all') {
         const catName = (j.categories?.category_name || 'Other').toLowerCase().replace(/\s+/g, '-');
         if (catName !== activeCategory) return false;
       }
-      // Filter by keyword query against title and description
       if (query.trim()) {
         const q = query.toLowerCase();
         const inTitle = j.title?.toLowerCase().includes(q);
         const inDesc = j.description?.toLowerCase().includes(q);
         if (!inTitle && !inDesc) return false;
       }
-      // Filter by user-selected budget slider bounds
       if (budget) {
         const amount = Number(j.budget) || 0;
         if (amount < budget.min || amount > budget.max) return false;
@@ -109,7 +95,6 @@ export default function Explore() {
     });
   }, [jobs, activeCategory, query, budget]);
 
-  // Reset all filters back to default full-catalog view
   function resetFilters() {
     setActiveCategory('all');
     setQuery('');
@@ -118,7 +103,6 @@ export default function Explore() {
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      {/* Shared Navigable Navbar with interactive profile menu and search */}
       <Navbar
         showSearch
         searchQuery={query}
@@ -128,7 +112,6 @@ export default function Explore() {
         setFiltersOpen={setFiltersOpen}
       />
 
-      {/* Main page layout: sidebar filters + responsive jobs grid */}
       <div className="mx-auto flex max-w-[1400px] gap-6 px-5 py-6 md:px-8">
         {filtersOpen && budget && (
           <FiltersSidebar
@@ -142,11 +125,16 @@ export default function Explore() {
         )}
 
         <main className="min-w-0 flex-1">
-          <div className="mb-6 flex items-baseline justify-between">
+          <div className="mb-6 flex items-center justify-between">
             <h1 className="font-display text-3xl font-semibold tracking-tight">Explore jobs</h1>
+            <button
+              onClick={() => navigate('/jobs/create')}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer"
+            >
+              + Post a Job
+            </button>
           </div>
 
-          {/* Horizontal scrollable category pill list */}
           <nav className="mb-6 flex gap-6 overflow-x-auto border-b border-border pb-3 text-[15px]">
             {categories.map((c) => (
               <button
@@ -161,7 +149,6 @@ export default function Explore() {
             ))}
           </nav>
 
-          {/* Conditional state displays: loading, error, empty search, or job grid */}
           {loading && <StateCard title="Loading jobs..." />}
 
           {!loading && loadError && (
@@ -183,7 +170,7 @@ export default function Explore() {
           {!loading && !loadError && visibleJobs.length > 0 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {visibleJobs.map((job) => (
-                <JobCard key={job.job_id} job={job} onOpen={() => navigate(`/explore/${job.job_id}`)} />
+                <JobCard key={job.job_id} job={job} onOpen={() => navigate(`/jobs/${job.job_id}`)} />
               ))}
             </div>
           )}
@@ -193,7 +180,6 @@ export default function Explore() {
   );
 }
 
-// Sidebar component with interactive range inputs and reset actions
 function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultCount, onClose }) {
   return (
     <aside className="hidden w-[280px] shrink-0 md:block">
@@ -234,7 +220,6 @@ function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultC
   );
 }
 
-// Reusable numeric range slider and min/max inputs
 function RangeField({ label, unit, value, onChange, bounds, onReset }) {
   return (
     <div>
@@ -276,7 +261,6 @@ function RangeField({ label, unit, value, onChange, bounds, onReset }) {
   );
 }
 
-// Individual card component representing an open job posting
 function JobCard({ job, onOpen }) {
   const categoryName = job.categories?.category_name || 'Uncategorized';
   const posted = formatDate(job.created_at);
@@ -319,7 +303,6 @@ function JobCard({ job, onOpen }) {
   );
 }
 
-// State feedback card (loading spinner, error message, or empty result banner)
 function StateCard({ title, body, action }) {
   return (
     <div className="rounded-lg border border-border bg-panel p-10 text-center">
@@ -337,7 +320,6 @@ function StateCard({ title, body, action }) {
   );
 }
 
-// Date helper utility to format timestamp into human-friendly representation
 function formatDate(value) {
   if (!value) return null;
   const date = new Date(value);

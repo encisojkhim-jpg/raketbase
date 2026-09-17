@@ -15,7 +15,7 @@ async function requireAuth(req, res, next) {
 
   const { data: profile, error: profileError } = await supabase
     .from('users')
-    .select('role, first_name, last_name')
+    .select('role, active_role, first_name, last_name, bio, skills, portfolio_url')
     .eq('user_id', userData.user.id)
     .single();
 
@@ -27,6 +27,7 @@ async function requireAuth(req, res, next) {
     id: userData.user.id,
     email: userData.user.email,
     role: profile.role,
+    active_role: profile.active_role || 'customer',
     firstName: profile.first_name,
     lastName: profile.last_name,
   };

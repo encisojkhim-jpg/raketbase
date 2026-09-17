@@ -3,8 +3,10 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Explore from './pages/Explore';
+import JobDetail from './pages/JobDetail';
 import FreelancerProfile from './pages/FreelancerProfile';
 import ProtectedRoute from './pages/ProtectedRoute';
+import CreateJob from './pages/CreateJob';
 
 function App() {
   return (
@@ -12,15 +14,14 @@ function App() {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-
-      {/* Redirect legacy /jobs routes to unified /explore */}
       <Route path="/jobs" element={<Navigate to="/explore" replace />} />
-      <Route path="/jobs/:id" element={<Navigate to="/explore" replace />} />
 
       {/* Protected Routes */}
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/explore" element={<Explore />} />
+        <Route path="/jobs/create" element={<CreateJob />} />
+        <Route path="/jobs/:id" element={<JobDetail />} />
         <Route path="/explore/:id" element={<FreelancerProfile />} />
       </Route>
 
