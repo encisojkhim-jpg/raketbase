@@ -177,14 +177,10 @@ exports.completeContract = async (req, res) => {
       return res.status(403).json({ success: false, error: 'Only the client can approve deliverables and release funds' });
     }
 
-    if (contract.status === 'completed') {
-      return res.status(409).json({ success: false, error: 'This contract is already completed' });
-    }
-
-    if (contract.status !== 'active' && contract.status !== 'submitted') {
+    if (contract.status !== 'submitted') {
       return res.status(409).json({
         success: false,
-        error: `Cannot complete a contract in '${contract.status}' status`,
+        error: `Cannot complete a contract in '${contract.status}' status. The freelancer must submit work for review first.`,
       });
     }
 

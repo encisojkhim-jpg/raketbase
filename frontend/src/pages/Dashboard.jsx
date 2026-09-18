@@ -332,8 +332,8 @@ export default function Dashboard() {
                               </button>
                             )}
 
-                            {/* Client Action: Approve Deliverables & Release Funds */}
-                            {isClient && (c.status === 'submitted' || c.status === 'active') && (
+                            {/* Client Action: Approve Deliverables & Release Funds (strictly from submitted status) */}
+                            {isClient && c.status === 'submitted' && (
                               <button
                                 onClick={() => handleApproveAndRelease(c)}
                                 disabled={actioningId === c.contract_id}
@@ -341,6 +341,13 @@ export default function Dashboard() {
                               >
                                 {actioningId === c.contract_id ? 'Releasing...' : 'Approve & Release Funds'}
                               </button>
+                            )}
+
+                            {/* Client awaiting freelancer deliverables */}
+                            {isClient && c.status === 'active' && (
+                              <span className="text-xs text-text-secondary">
+                                Work in Progress
+                              </span>
                             )}
 
                             {/* Completed Badge */}
