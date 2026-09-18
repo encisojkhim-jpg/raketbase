@@ -160,7 +160,7 @@ export default function FreelancerProfile() {
       }
 
       if (!res.ok || !body.success) {
-        throw new Error(body.error || 'Could not submit your proposal.');
+        throw new Error(body.error || body.message || 'Could not submit your proposal.');
       }
 
       setAlreadyApplied(true);

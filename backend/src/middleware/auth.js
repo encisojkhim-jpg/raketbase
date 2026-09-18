@@ -1,4 +1,4 @@
-const { supabase } = require('../config/supabase');
+const { supabase, supabaseAdmin } = require('../config/supabase');
 
 async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || '';
@@ -13,7 +13,12 @@ async function requireAuth(req, res, next) {
     return res.status(401).json({ status: 401, message: 'Invalid or expired token' });
   }
 
-  const { data: profile, error: profileError } = await supabase
+  if (!supabaseAdmin) {
+    console.error('SUPABASE_SERVICE_ROLE_KEY is not set — cannot bypass RLS to read user profile.');
+    return res.status(500).json({ status: 500, message: 'Server misconfiguration: missing service role key' });
+  }
+
+  const { data: profile, error: profileError } = await supabaseAdmin
     .from('users')
     .select('role, active_role, first_name, last_name, bio, skills, portfolio_url')
     .eq('user_id', userData.user.id)

@@ -170,7 +170,7 @@ export default function Explore() {
           {!loading && !loadError && visibleJobs.length > 0 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {visibleJobs.map((job) => (
-                <JobCard key={job.job_id} job={job} onOpen={() => navigate(`/jobs/${job.job_id}`)} />
+                <JobCard key={job.job_id} job={job} onOpen={() => navigate(`/explore/${job.job_id}`)} />
               ))}
             </div>
           )}
