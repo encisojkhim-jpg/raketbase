@@ -117,6 +117,16 @@ export default function Navbar({
           </div>
         )}
 
+        {/* My Postings link: where a client reviews and acts on incoming proposals */}
+        <Link
+          to="/my-jobs"
+          className={`hidden text-sm font-medium transition-colors cursor-pointer sm:inline ${
+            location.pathname.startsWith('/my-jobs') ? 'text-accent font-semibold' : 'text-text-secondary hover:text-text'
+          }`}
+        >
+          My Postings
+        </Link>
+
         {/* Dashboard link directly to the left of the user avatar */}
         <Link
           to="/dashboard"

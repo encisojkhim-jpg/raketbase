@@ -1,4 +1,4 @@
-const { supabase } = require('../config/supabase');
+const { supabase, supabaseAdmin } = require('../config/supabase');
 
 // POST /api/v1/auth/register
 async function register(req, res) {
@@ -17,6 +17,12 @@ async function register(req, res) {
     });
   }
 
+  // NOTE: public.users.role is constrained to ('customer' | 'staff' | 'admin') in the DB schema.
+  // 'freelancer' is only a valid value for active_role, not role. Passing the raw
+  // registration choice straight into `role` will violate that CHECK constraint and
+  // silently break freelancer signups (auth user gets created, profile row does not).
+  const requestedActiveRole = role === 'freelancer' ? 'freelancer' : 'customer';
+
   const { error } = await supabase.auth.signUp({
     email,
     password,
@@ -24,8 +30,8 @@ async function register(req, res) {
       data: { 
         first_name: firstName, 
         last_name: lastName, 
-        role: role || 'customer',
-        active_role: 'customer'
+        role: 'customer',
+        active_role: requestedActiveRole
       },
     },
   });
@@ -51,11 +57,19 @@ async function login(req, res) {
     return res.status(401).json({ status: 401, message: error.message });
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabaseAdmin
     .from('users')
     .select('user_id, email, first_name, last_name, role, active_role, bio, skills, portfolio_url')
     .eq('user_id', data.user.id)
     .single();
+
+  if (profileError || !profile) {
+    console.error('Login succeeded but no matching public.users row was found for', data.user.id, profileError);
+    return res.status(500).json({
+      status: 500,
+      message: 'Your account is missing a profile record. Please contact support or re-register.',
+    });
+  }
 
   return res.status(200).json({
     token: data.session.access_token,
@@ -71,7 +85,7 @@ async function switchRole(req, res) {
     return res.status(400).json({ status: 400, message: 'Role must be customer or freelancer' });
   }
 
-  const { data: profile, error } = await supabase
+  const { data: profile, error } = await supabaseAdmin
     .from('users')
     .update({ active_role: new_role })
     .eq('user_id', req.user.id)
@@ -87,7 +101,7 @@ async function switchRole(req, res) {
 
 // GET /api/v1/auth/profile (Member 1)
 async function getProfile(req, res) {
-  const { data: profile, error } = await supabase
+  const { data: profile, error } = await supabaseAdmin
     .from('users')
     .select('user_id, email, first_name, last_name, role, active_role, bio, skills, portfolio_url')
     .eq('user_id', req.user.id)
@@ -108,7 +122,7 @@ async function updateProfile(req, res) {
     return res.status(400).json({ status: 400, message: 'Bio must be 500 characters or less' });
   }
 
-  const { data: updated, error } = await supabase
+  const { data: updated, error } = await supabaseAdmin
     .from('users')
     .update({ bio, skills, portfolio_url })
     .eq('user_id', req.user.id)
