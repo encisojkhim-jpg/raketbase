@@ -224,7 +224,6 @@ export default function Dashboard() {
           <div className="bg-panel border border-border rounded-lg mb-10 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/50">
               <div className="flex items-center gap-2">
-                <span className="text-accent text-base">🛡️</span>
                 <h2 className="font-display text-lg font-medium">Contracts & Escrow</h2>
               </div>
               <span className="text-xs text-text-secondary hidden sm:inline">

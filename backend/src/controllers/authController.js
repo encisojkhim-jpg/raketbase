@@ -65,7 +65,7 @@ async function login(req, res) {
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('users')
-    .select('user_id, email, first_name, last_name, role, active_role, bio, skills, portfolio_url')
+    .select('user_id, email, first_name, last_name, role, active_role, status, bio, skills, portfolio_url')
     .eq('user_id', data.user.id)
     .single();
 
@@ -74,6 +74,13 @@ async function login(req, res) {
     return res.status(500).json({
       status: 500,
       message: 'Your account is missing a profile record. Please contact support or re-register.',
+    });
+  }
+
+  if (profile.status === 'suspended') {
+    return res.status(403).json({
+      status: 403,
+      message: 'This account has been suspended. Please contact support.',
     });
   }
 

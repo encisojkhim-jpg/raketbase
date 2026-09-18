@@ -1,0 +1,222 @@
+const { supabaseAdmin } = require('../config/supabase');
+
+// NOTE ON SCHEMA GAP: public.disputes only has a single `reason` text column —
+// there's no separate `evidence_summary` column even though the task spec calls
+// for both a reason dropdown AND a min-30-char evidence field. Until that's added
+// as a migration, we fold both into `reason` as a formatted string. Swap this out
+// for real columns once the schema is updated.
+
+// POST /api/v1/disputes - File a dispute against a contract (must be a participant)
+exports.createDispute = async (req, res) => {
+  try {
+    const { contract_id, reason_category, evidence_summary } = req.body;
+    const userId = req.user.id;
+
+    if (!contract_id) {
+      return res.status(400).json({ success: false, error: 'contract_id is required' });
+    }
+
+    const validCategories = ['Incomplete Work', 'Non-Payment', 'Unresponsive'];
+    if (!reason_category || !validCategories.includes(reason_category)) {
+      return res.status(400).json({
+        success: false,
+        error: `reason_category must be one of: ${validCategories.join(', ')}`,
+      });
+    }
+
+    if (!evidence_summary || evidence_summary.trim().length < 30) {
+      return res.status(400).json({
+        success: false,
+        error: 'Evidence summary must be at least 30 characters',
+      });
+    }
+
+    // Confirm the contract exists and the caller is actually a participant
+    const { data: contract, error: contractError } = await supabaseAdmin
+      .from('contracts')
+      .select('contract_id, client_id, freelancer_id, status')
+      .eq('contract_id', contract_id)
+      .single();
+
+    if (contractError || !contract) {
+      return res.status(404).json({ success: false, error: 'Contract not found' });
+    }
+
+    if (contract.client_id !== userId && contract.freelancer_id !== userId) {
+      return res.status(403).json({ success: false, error: 'You are not a participant in this contract' });
+    }
+
+    // Fold category + evidence into the single `reason` column until schema adds a
+    // dedicated evidence_summary field.
+    const reason = `[${reason_category}] ${evidence_summary.trim()}`;
+
+    const { data: dispute, error } = await supabaseAdmin
+      .from('disputes')
+      .insert([
+        {
+          contract_id,
+          raised_by_id: userId,
+          reason,
+          status: 'open',
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Optionally reflect the dispute on the contract itself
+    await supabaseAdmin
+      .from('contracts')
+      .update({ status: 'disputed' })
+      .eq('contract_id', contract_id);
+
+    return res.status(201).json({ success: true, data: dispute });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// GET /api/v1/disputes/:id - View a single dispute (participant or admin only)
+exports.getDisputeById = async (req, res) => {
+  try {
+    const { id: dispute_id } = req.params;
+    const userId = req.user.id;
+    const isAdmin = req.user.role === 'admin';
+
+    const { data: dispute, error } = await supabaseAdmin
+      .from('disputes')
+      .select(`
+        dispute_id,
+        contract_id,
+        raised_by_id,
+        handled_by_staff_id,
+        reason,
+        resolution_notes,
+        status,
+        created_at,
+        contracts (
+          contract_id,
+          client_id,
+          freelancer_id,
+          agreed_amount,
+          status,
+          jobs ( title )
+        ),
+        raised_by:users!disputes_raised_by_id_fkey ( user_id, first_name, last_name, email )
+      `)
+      .eq('dispute_id', dispute_id)
+      .single();
+
+    if (error || !dispute) {
+      return res.status(404).json({ success: false, error: 'Dispute not found' });
+    }
+
+    const isParticipant =
+      dispute.contracts?.client_id === userId || dispute.contracts?.freelancer_id === userId;
+
+    if (!isAdmin && !isParticipant) {
+      return res.status(403).json({ success: false, error: 'You do not have access to this dispute' });
+    }
+
+    return res.status(200).json({ success: true, data: dispute });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// GET /api/v1/disputes - List disputes (admin: all disputes; non-admin: only their own)
+exports.listDisputes = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const isAdmin = req.user.role === 'admin';
+
+    let query = supabaseAdmin
+      .from('disputes')
+      .select(`
+        dispute_id,
+        contract_id,
+        raised_by_id,
+        status,
+        reason,
+        created_at,
+        contracts ( job_id, client_id, freelancer_id, agreed_amount, jobs ( title ) )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (!isAdmin) {
+      query = query.eq('raised_by_id', userId);
+    }
+
+    const { data: disputes, error } = await query;
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, data: disputes || [] });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// PATCH /api/v1/disputes/:id/resolve - Admin resolves a dispute (refund / release / split)
+exports.resolveDispute = async (req, res) => {
+  try {
+    const { id: dispute_id } = req.params;
+    const { resolution, notes } = req.body; // resolution: 'refund_client' | 'release_freelancer' | 'split'
+    const staffId = req.user.id;
+
+    const validResolutions = ['refund_client', 'release_freelancer', 'split'];
+    if (!resolution || !validResolutions.includes(resolution)) {
+      return res.status(400).json({
+        success: false,
+        error: `resolution must be one of: ${validResolutions.join(', ')}`,
+      });
+    }
+
+    const { data: dispute, error: fetchError } = await supabaseAdmin
+      .from('disputes')
+      .select('dispute_id, contract_id, status')
+      .eq('dispute_id', dispute_id)
+      .single();
+
+    if (fetchError || !dispute) {
+      return res.status(404).json({ success: false, error: 'Dispute not found' });
+    }
+
+    if (dispute.status === 'resolved') {
+      return res.status(409).json({ success: false, error: 'This dispute has already been resolved' });
+    }
+
+    const resolutionLabels = {
+      refund_client: 'Refunded to client',
+      release_freelancer: 'Released to freelancer',
+      split: 'Funds split between client and freelancer',
+    };
+    const resolutionNotes = `${resolutionLabels[resolution]}${notes ? ` — ${notes}` : ''}`;
+
+    const { data: updatedDispute, error: updateError } = await supabaseAdmin
+      .from('disputes')
+      .update({
+        status: 'resolved',
+        resolution_notes: resolutionNotes,
+        handled_by_staff_id: staffId,
+      })
+      .eq('dispute_id', dispute_id)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    // Move the underlying contract out of 'disputed' once resolved.
+    if (dispute.contract_id) {
+      await supabaseAdmin
+        .from('contracts')
+        .update({ status: 'completed' })
+        .eq('contract_id', dispute.contract_id);
+    }
+
+    return res.status(200).json({ success: true, data: updatedDispute });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};

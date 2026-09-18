@@ -7,6 +7,8 @@ const authRoutes = require('./routes/auth');
 const jobsRoutes = require('./routes/jobs');
 const proposalsRoutes = require('./routes/proposals');
 const contractRoutes = require('./routes/contracts');
+const adminRoutes = require('./routes/admin');
+const disputesRoutes = require('./routes/disputes');
 
 const app = express();
 
@@ -23,6 +25,8 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/jobs', jobsRoutes);
 app.use('/api/v1/proposals', proposalsRoutes);
 app.use('/api/v1/contracts', contractRoutes);
+app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/disputes', disputesRoutes);
 
 // 404 for anything unmatched (Must stay AFTER all route mounts)
 app.use((req, res) => {

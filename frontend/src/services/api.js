@@ -116,3 +116,42 @@ export function submitContractWork(contractId) {
 export function completeContract(contractId) {
   return request(`/contracts/${contractId}/complete`, { method: 'PATCH' });
 }
+
+// Admin API (Part 4)
+export function getAdminAnalytics() {
+  return request('/admin/analytics');
+}
+ 
+export function getAdminUsers() {
+  return request('/admin/users');
+}
+ 
+export function updateUserStatus(userId, status) {
+  return request(`/admin/users/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+ 
+// Disputes API (Part 4)
+export function createDispute(payload) {
+  return request('/disputes', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+ 
+export function listDisputes() {
+  return request('/disputes');
+}
+ 
+export function getDisputeById(disputeId) {
+  return request(`/disputes/${disputeId}`);
+}
+ 
+export function resolveDispute(disputeId, payload) {
+  return request(`/disputes/${disputeId}/resolve`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}

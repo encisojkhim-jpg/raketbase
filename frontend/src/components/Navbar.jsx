@@ -139,6 +139,20 @@ export default function Navbar({
           </Link>
         )}
 
+        {/* Admin panel link (admin accounts only) */}
+        {user.role === 'admin' && (
+          <Link
+            to="/admin"
+            className={`text-sm font-medium transition-colors cursor-pointer ${
+              location.pathname === '/admin'
+                ? 'text-accent font-semibold'
+                : 'text-text-secondary hover:text-text'
+            }`}
+          >
+            Admin
+          </Link>
+        )}
+        
         {/* Dashboard link directly to the left of the user avatar */}
         <Link
           to="/dashboard"
