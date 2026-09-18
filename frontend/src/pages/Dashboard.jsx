@@ -356,6 +356,16 @@ export default function Dashboard() {
                               </span>
                             )}
 
+                            {/* Either participant can escalate an in-flight contract */}
+                            {(c.status === 'active' || c.status === 'submitted') && (
+                              <Link
+                                to={`/contracts/${c.contract_id}/dispute`}
+                                className="ml-2 inline-block px-3 py-1.5 border border-rose-500/30 text-rose-400 rounded-md text-xs font-medium hover:bg-rose-500/10 transition-colors cursor-pointer"
+                              >
+                                File Dispute
+                              </Link>
+                            )}
+
                             {/* Freelancer awaiting client approval */}
                             {!isClient && c.status === 'submitted' && (
                               <span className="text-xs text-sky-400 font-medium">
