@@ -1,20 +1,114 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 @theme {
-  --color-bg: #10131A;
-  --color-panel: #141824;
-  --color-surface: #1D2129;
-  --color-border: #262B36;
-  --color-text: #EDEEF2;
-  --color-text-secondary: #8D93A3;
-  --color-accent: #E7B24B;
-  --color-accent-hover: #F2C368;
-  --color-error: #E5484D;
+  /* ── Core Palette: Forest-Dark + Brand Orange ── */
+  --color-bg: #0C1410;
+  --color-panel: #111D16;
+  --color-surface: #182620;
+  --color-border: #243428;
+  --color-sidebar: #071A10;
 
-  --font-display: "Space Grotesk", sans-serif;
-  --font-sans: "Inter", sans-serif;
+  --color-text: #E8F0EB;
+  --color-text-secondary: #7A8F82;
+
+  --color-accent: #FF5A1E;
+  --color-accent-hover: #FF7A47;
+  --color-accent-soft: rgba(255, 90, 30, 0.12);
+
+  --color-lime: #B4F105;
+  --color-lime-soft: rgba(180, 241, 5, 0.15);
+
+  --color-error: #EF4444;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-info: #3B82F6;
+
+  /* ── Typography ── */
+  --font-display: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  --font-sans: "Inter", "Plus Jakarta Sans", sans-serif;
+  --font-heading: "Plus Jakarta Sans", "Space Grotesk", sans-serif;
 }
+
+/* ── Base Reset ── */
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
   font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
+
+/* ── Auth Page Orb Animations ── */
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+  33% { transform: translate(60px, -40px) scale(1.15); opacity: 0.7; }
+  66% { transform: translate(-30px, 30px) scale(0.95); opacity: 0.4; }
+}
+
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+  40% { transform: translate(-50px, 50px) scale(1.1); opacity: 0.6; }
+  70% { transform: translate(40px, -20px) scale(0.9); opacity: 0.35; }
+}
+
+@keyframes shimmer-line {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ── Range Slider ── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-border);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+  border: 2px solid var(--color-bg);
+  box-shadow: 0 0 0 3px rgba(255, 90, 30, 0.2);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+  border: 2px solid var(--color-bg);
+}
+
+/* ── Select Dropdown Arrow Fix ── */
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%237A8F82' viewBox='0 0 16 16'%3E%3Cpath d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 36px;
 }
