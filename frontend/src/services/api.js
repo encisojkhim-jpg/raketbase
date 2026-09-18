@@ -1,4 +1,4 @@
-﻿const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('token');
@@ -98,4 +98,21 @@ export function acceptProposal(proposalId) {
 
 export function rejectProposal(proposalId) {
   return request(`/proposals/${proposalId}/reject`, { method: 'PATCH' });
+}
+
+// Contract Execution & Escrow API (Part 3)
+export function getContracts() {
+  return request('/contracts');
+}
+
+export function getContractById(contractId) {
+  return request(`/contracts/${contractId}`);
+}
+
+export function submitContractWork(contractId) {
+  return request(`/contracts/${contractId}/submit`, { method: 'PATCH' });
+}
+
+export function completeContract(contractId) {
+  return request(`/contracts/${contractId}/complete`, { method: 'PATCH' });
 }

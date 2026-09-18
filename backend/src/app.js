@@ -6,6 +6,7 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const jobsRoutes = require('./routes/jobs');
 const proposalsRoutes = require('./routes/proposals');
+const contractRoutes = require('./routes/contracts');
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.get('/api/v1/health', (req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/jobs', jobsRoutes);
 app.use('/api/v1/proposals', proposalsRoutes);
+app.use('/api/v1/contracts', contractRoutes);
 
 // 404 for anything unmatched (Must stay AFTER all route mounts)
 app.use((req, res) => {

@@ -100,58 +100,40 @@ exports.getProposalsForJob = async (req, res) => {
 };
 
 // PATCH /api/v1/proposals/:id/accept - Accept a proposal (client-only, must own the job).
-// Rejects other pending proposals on the same job and moves the job to 'assigned'.
+// Atomically accepts proposal, auto-rejects other pending proposals on the job,
+// moves the job to 'assigned', and creates an active contract in public.contracts via PostgreSQL RPC.
 exports.acceptProposal = async (req, res) => {
   try {
     const { id: proposal_id } = req.params;
     const client_id = req.user.id;
 
-    const { data: proposal, error: proposalError } = await supabaseAdmin
-      .from('proposals')
-      .select('*, jobs(job_id, client_id, status)')
-      .eq('proposal_id', proposal_id)
-      .single();
+    const { data: contract, error: rpcError } = await supabaseAdmin.rpc(
+      'accept_proposal_and_create_contract',
+      {
+        p_proposal_id: proposal_id,
+        p_client_id: client_id,
+      }
+    );
 
-    if (proposalError || !proposal) {
-      return res.status(404).json({ success: false, error: 'Proposal not found' });
+    if (rpcError) {
+      const msg = rpcError.message || 'Failed to accept proposal';
+      if (msg.includes('Proposal not found') || msg.includes('Job not found')) {
+        return res.status(404).json({ success: false, error: msg });
+      }
+      if (msg.includes('Unauthorized')) {
+        return res.status(403).json({ success: false, error: msg });
+      }
+      if (msg.includes('already') || msg.includes('no longer open')) {
+        return res.status(409).json({ success: false, error: msg });
+      }
+      return res.status(500).json({ success: false, error: msg });
     }
-    if (proposal.jobs.client_id !== client_id) {
-      return res.status(403).json({ success: false, error: 'You do not own the job for this proposal' });
-    }
-    if (proposal.jobs.status !== 'open') {
-      return res.status(409).json({ success: false, error: 'This job is no longer open for proposals' });
-    }
-    if (proposal.status !== 'pending') {
-      return res.status(409).json({ success: false, error: 'This proposal has already been decided' });
-    }
 
-    const { data: accepted, error: acceptError } = await supabaseAdmin
-      .from('proposals')
-      .update({ status: 'accepted' })
-      .eq('proposal_id', proposal_id)
-      .select()
-      .single();
-
-    if (acceptError) throw acceptError;
-
-    // Auto-reject every other still-pending proposal on this job.
-    const { error: rejectOthersError } = await supabaseAdmin
-      .from('proposals')
-      .update({ status: 'rejected' })
-      .eq('job_id', proposal.job_id)
-      .eq('status', 'pending')
-      .neq('proposal_id', proposal_id);
-
-    if (rejectOthersError) throw rejectOthersError;
-
-    const { error: jobUpdateError } = await supabaseAdmin
-      .from('jobs')
-      .update({ status: 'assigned' })
-      .eq('job_id', proposal.job_id);
-
-    if (jobUpdateError) throw jobUpdateError;
-
-    return res.status(200).json({ success: true, data: accepted });
+    return res.status(200).json({
+      success: true,
+      message: 'Proposal accepted and contract initiated.',
+      data: contract,
+    });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }
