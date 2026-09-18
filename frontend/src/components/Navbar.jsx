@@ -117,6 +117,16 @@ export default function Navbar({
           </div>
         )}
 
+        {/* Explore Jobs link */}
+        <Link
+          to="/explore"
+          className={`text-sm font-medium transition-colors cursor-pointer ${
+            location.pathname === '/explore' ? 'text-accent font-semibold' : 'text-text-secondary hover:text-text'
+          }`}
+        >
+          Explore Jobs
+        </Link>
+
         {/* Dashboard link directly to the left of the user avatar */}
         <Link
           to="/dashboard"
@@ -126,6 +136,16 @@ export default function Navbar({
         >
           Dashboard
         </Link>
+
+        {/* Post a Job button (customers only) */}
+        {user.active_role === 'customer' && (
+          <Link
+            to="/jobs/create"
+            className="rounded-md bg-accent px-3.5 py-1.5 text-xs font-semibold text-[#1A1305] hover:bg-accent-hover transition-colors cursor-pointer"
+          >
+            + Post a Job
+          </Link>
+        )}
 
         {/* User Profile Avatar with Pure Logout & Identity Dropdown */}
         <div className="relative" ref={dropdownRef}>

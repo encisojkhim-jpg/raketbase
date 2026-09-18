@@ -84,7 +84,7 @@ export default function FreelancerProfile() {
             setAlreadyApplied(true);
           }
         }
-      } catch (err) {
+      } catch {
         // Silently continue if check fails
       }
     }

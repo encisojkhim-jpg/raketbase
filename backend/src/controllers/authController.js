@@ -17,6 +17,12 @@ async function register(req, res) {
     });
   }
 
+  const allowedRoles = ['customer', 'freelancer'];
+  const requestedRole = role || 'customer';
+  if (!allowedRoles.includes(requestedRole)) {
+    return res.status(400).json({ status: 400, message: 'Role must be customer or freelancer' });
+  }
+
   const { error } = await supabase.auth.signUp({
     email,
     password,
@@ -24,8 +30,8 @@ async function register(req, res) {
       data: { 
         first_name: firstName, 
         last_name: lastName, 
-        role: role || 'customer',
-        active_role: 'customer'
+        role: 'customer',
+        active_role: requestedRole === 'freelancer' ? 'freelancer' : 'customer',
       },
     },
   });

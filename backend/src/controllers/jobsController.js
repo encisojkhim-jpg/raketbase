@@ -64,6 +64,13 @@ exports.getJobById = async (req, res) => {
 // POST /api/v1/jobs - Create a new job posting (Member 2)
 exports.createJob = async (req, res) => {
   try {
+    if (req.user?.active_role !== 'customer') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only customers can create job postings.',
+      });
+    }
+
     const { title, description, category_id, budget_type, budget, deadline } = req.body;
     const client_id = req.user.id;
 

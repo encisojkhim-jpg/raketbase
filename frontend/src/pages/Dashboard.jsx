@@ -15,6 +15,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState([]);
 
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  })();
+
   // Auth check & live proposal fetch on mount
   useEffect(() => {
     // Verify that JWT session token exists in localStorage
@@ -60,9 +68,17 @@ export default function Dashboard() {
           <div className="flex justify-between items-center mb-10 border-b border-border pb-6">
             <h1 className="font-display text-3xl font-semibold tracking-tight">Dashboard</h1>
             <div className="flex items-center gap-3">
+              {user.active_role === 'customer' && (
+                <Link
+                  to="/jobs/create"
+                  className="px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
+                >
+                  + Post a Job
+                </Link>
+              )}
               <Link
                 to="/explore"
-                className="px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
+                className="px-4 py-2 border border-border text-text rounded-md text-sm font-medium hover:border-accent/40 transition-colors cursor-pointer"
               >
                 Browse jobs
               </Link>

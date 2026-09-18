@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCategories, createJob } from '../services/api';
+import Navbar from '../components/Navbar';
 
 export default function CreateJob() {
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ export default function CreateJob() {
       try {
         const res = await getCategories();
         setCategories(res.data || []);
-      } catch (err) {
+      } catch {
         setError('Failed to fetch job categories.');
       }
     }
@@ -63,10 +64,12 @@ export default function CreateJob() {
   }
 
   return (
-    <div className="min-h-screen bg-bg text-text p-8 flex justify-center items-center">
-      <div className="w-full max-w-2xl bg-panel border border-border p-8 rounded-lg shadow-lg">
-        <h2 className="font-display text-2xl font-semibold mb-2">Post a New Job</h2>
-        <p className="text-text-secondary text-sm mb-6">Reach verified freelancers across RaketBase.</p>
+    <div className="min-h-screen bg-bg text-text">
+      <Navbar showBack backTo="/explore" />
+      <div className="p-8 flex justify-center items-center">
+        <div className="w-full max-w-2xl bg-panel border border-border p-8 rounded-lg shadow-lg">
+          <h2 className="font-display text-2xl font-semibold mb-2">Post a New Job</h2>
+          <p className="text-text-secondary text-sm mb-6">Reach verified freelancers across RaketBase.</p>
 
         {error && (
           <div className="text-sm mb-4 px-3 py-2.5 rounded-md bg-error/10 text-error border border-error/30">
@@ -179,6 +182,7 @@ export default function CreateJob() {
             {loading ? 'Publishing Job...' : 'Publish Job'}
           </button>
         </form>
+        </div>
       </div>
     </div>
   );
