@@ -1,11 +1,5 @@
 const { supabaseAdmin } = require('../config/supabase');
 
-// NOTE ON SCHEMA GAP: public.disputes only has a single `reason` text column —
-// there's no separate `evidence_summary` column even though the task spec calls
-// for both a reason dropdown AND a min-30-char evidence field. Until that's added
-// as a migration, we fold both into `reason` as a formatted string. Swap this out
-// for real columns once the schema is updated.
-
 // POST /api/v1/disputes - File a dispute against a contract (must be a participant)
 exports.createDispute = async (req, res) => {
   try {
