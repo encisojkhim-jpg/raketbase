@@ -20,12 +20,16 @@ async function requireAuth(req, res, next) {
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('users')
-    .select('role, active_role, first_name, last_name, bio, skills, portfolio_url')
+    .select('role, active_role, status, first_name, last_name, bio, skills, portfolio_url')
     .eq('user_id', userData.user.id)
     .single();
 
   if (profileError || !profile) {
     return res.status(401).json({ status: 401, message: 'User profile not found' });
+  }
+  
+  if (profile.status === 'suspended') {
+    return res.status(403).json({ status: 403, message: 'This account has been suspended.' });
   }
 
   req.user = {

@@ -1,0 +1,14 @@
+const express = require('express');
+const router = express.Router();
+const { requireAuth } = require('../middleware/auth');
+const { requireAdmin } = require('../middleware/rbac');
+const adminController = require('../controllers/adminController');
+
+// Every admin route requires a logged-in admin.
+router.use(requireAuth, requireAdmin);
+
+router.get('/analytics', adminController.getAnalytics);
+router.get('/users', adminController.getAllUsers);
+router.patch('/users/:id', adminController.updateUserStatus);
+
+module.exports = router;

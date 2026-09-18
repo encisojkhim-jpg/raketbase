@@ -8,6 +8,9 @@ import FreelancerProfile from './pages/FreelancerProfile';
 import ProtectedRoute from './pages/ProtectedRoute';
 import CreateJob from './pages/CreateJob';
 import ClientJobView from './pages/ClientJobView';
+import DisputeTicket from './pages/DisputeTicket';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminRoute from './pages/AdminRoute';
 
 function App() {
   return (
@@ -26,6 +29,13 @@ function App() {
         <Route path="/explore/:id" element={<FreelancerProfile />} />
         <Route path="/my-jobs" element={<ClientJobView />} />
         <Route path="/my-jobs/:id" element={<ClientJobView />} />
+        {/* Part 4: any contract participant can file a dispute */}
+        <Route path="/contracts/:id/dispute" element={<DisputeTicket />} />
+      </Route>
+
+      {/* Part 4: Admin-only routes */}
+      <Route element={<AdminRoute />}>
+        <Route path="/admin" element={<AdminDashboard />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/login" replace />} />
