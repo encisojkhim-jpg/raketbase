@@ -15,3 +15,13 @@ Changes
 
 [Database changes]
 - Added a withdrawn status to proposals table
+
+Changes 2
+[General changes]
+- There are now badges in the job cards that says either accepted, rejected, or applied
+- Profile pictures now exist
+- Added a rating system for both freelancers and clients
+
+[Database changes]
+- Added fields to support profile pictures
+- Added stuff to support the rating system
