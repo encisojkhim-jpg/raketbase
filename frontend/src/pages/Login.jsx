@@ -10,6 +10,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -29,86 +30,99 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen bg-bg text-text">
-      <div className="hidden md:flex md:w-[42%] flex-col justify-between bg-panel border-r border-border p-14">
-        <div className="font-display text-2xl font-semibold tracking-tight">RaketBase</div>
-        <div className="max-w-xs">
-          <h1 className="font-display text-3xl font-medium leading-snug mb-3">
-            Built for the people who get things done.
-          </h1>
-          <p className="text-text-secondary text-[15px] leading-relaxed">
-            Post the work. Find the work. RaketBase connects clients and freelancers directly.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2">
-          <div className="h-2.5 rounded-sm bg-border" style={{ width: '70%' }} />
-          <div className="h-2.5 rounded-sm bg-border" style={{ width: '45%' }} />
-          <div className="h-2.5 rounded-sm bg-border" style={{ width: '85%' }} />
-          <div className="h-2.5 rounded-sm bg-border" style={{ width: '30%' }} />
-        </div>
-      </div>
+    <div className="login-wrapper">
+      <div className="login-bg-shape login-bg-shape-1"></div>
+      <div className="login-bg-shape login-bg-shape-2"></div>
+      
+      <div className="login-card">
+        
+        <Link to="/" className="login-brand text-decoration-none d-flex justify-content-center">
+          <img src="/raketbase%20logo.png" alt="RaketBase Logo" style={{ height: '90px', objectFit: 'contain' }} />
+        </Link>
+        
+        <p className="login-subtitle">Please sign in to access your dashboard</p>
+        
+        {justRegistered && (
+          <div className="alert alert-success py-2 mb-4" role="alert">
+            Account created. Log in below.
+          </div>
+        )}
+        {error && (
+          <div className="alert alert-danger py-2 mb-4" role="alert">
+            {error}
+          </div>
+        )}
 
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-[340px]">
-          <h2 className="font-display text-2xl font-medium mb-1.5">Log in</h2>
-          <p className="text-text-secondary text-sm mb-8">Welcome back. Enter your details to continue.</p>
-
-          {justRegistered && (
-            <div className="text-sm mb-4 px-3 py-2.5 rounded-md bg-accent/10 text-accent border border-accent/30">
-              Account created. Log in below.
-            </div>
-          )}
-          {error && (
-            <div className="text-sm mb-4 px-3 py-2.5 rounded-md bg-error/10 text-error border border-error/30">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label className="block text-[13px] font-medium text-text-secondary mb-1.5" htmlFor="email">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                autoComplete="email"
+        <form onSubmit={handleSubmit} id="loginForm" className="needs-validation" noValidate>
+          
+          <div className="login-form-group">
+            <label htmlFor="email" className="login-form-label">Email Address</label>
+            <div className="login-input-group">
+              <i className="bi bi-envelope input-icon"></i>
+              <input 
+                type="email" 
+                id="email" 
+                className="login-input" 
+                placeholder="name@company.com" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-surface border border-border text-text px-3 py-2.5 rounded-md text-sm outline-none focus:border-accent transition-colors"
+                required 
               />
             </div>
-            <div className="mb-4">
-              <label className="block text-[13px] font-medium text-text-secondary mb-1.5" htmlFor="password">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                autoComplete="current-password"
+          </div>
+          
+          <div className="login-form-group">
+            <label htmlFor="password" className="login-form-label">Password</label>
+            <div className="login-input-group">
+              <i className="bi bi-shield-lock input-icon"></i>
+              <input 
+                type={showPassword ? "text" : "password"} 
+                id="password" 
+                className="login-input login-input-password" 
+                placeholder="••••••••" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-surface border border-border text-text px-3 py-2.5 rounded-md text-sm outline-none focus:border-accent transition-colors"
+                required 
               />
+              <button 
+                type="button" 
+                className="password-toggle-btn" 
+                aria-label="Show password"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
+              </button>
             </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-accent hover:bg-accent-hover disabled:bg-border disabled:text-text-secondary text-[#1A1305] font-semibold text-sm py-3 rounded-md mt-2 transition-colors cursor-pointer"
-            >
-              {loading ? 'Logging in...' : 'Log in'}
-            </button>
-          </form>
-
-          <div className="mt-6 text-sm text-text-secondary text-center">
-            Don&apos;t have an account?{' '}
-            <Link to="/register" className="text-accent font-medium hover:underline">
-              Create one
-            </Link>
           </div>
+          
+          <div className="login-options">
+            <label className="custom-control-label">
+              <input type="checkbox" className="custom-checkbox-input" id="rememberMe" />
+              <span>Remember Me</span>
+            </label>
+            <a href="#" className="forgot-password-link">Forgot Password?</a>
+          </div>
+          
+          <button type="submit" className="btn-login" id="btn-submit" disabled={loading}>
+            <span>{loading ? 'Signing in...' : 'Sign In to Dashboard'}</span>
+            <i className="bi bi-arrow-right"></i>
+          </button>
+          
+        </form>
+        
+        <div className="login-divider">Or sign in with</div>
+        
+        <div className="social-login-grid" style={{ gridTemplateColumns: '1fr' }}>
+          <button className="btn-social" type="button" id="btn-google">
+            <i className="bi bi-google text-danger"></i>
+            <span>Google</span>
+          </button>
         </div>
+        
+        <p className="login-footer-text">
+          Don't have an account? <Link to="/register" id="link-register">Register Now</Link>
+        </p>
+        
       </div>
     </div>
   );

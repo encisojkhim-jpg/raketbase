@@ -122,318 +122,259 @@ export default function Dashboard() {
   const pendingProposalsCount = proposals.filter((p) => p.status === 'pending').length;
 
   return (
-    <div className="min-h-screen bg-bg text-text">
-      <Navbar />
-
-      <div className="p-8">
-        <div className="max-w-5xl mx-auto">
-          {/* Top header with navigation actions */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 border-b border-border pb-6">
-            <div>
-              <h1 className="font-display text-3xl font-semibold tracking-tight">Dashboard</h1>
-              <p className="text-text-secondary text-sm mt-1">
-                Manage your active contracts, escrow funds, and job applications.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
+    <>
+      {/* Sidebar Component */}
+      <div className="sidebar-wrapper" id="sidebar">
+        <Link to="/" className="sidebar-brand text-decoration-none d-flex align-items-center gap-2">
+          <img src="/raketbase%20logo.png" alt="RaketBase Logo" style={{ height: '40px', objectFit: 'contain' }} />
+          <span>RaketBase</span>
+        </Link>
+        <div className="flex-grow-1 overflow-y-auto mt-4">
+          <div className="sidebar-menu-section">
+            <div className="sidebar-menu-title">Menu</div>
+            <ul className="sidebar-menu-list">
+              <li className="sidebar-menu-item">
+                <Link to="/dashboard" className="sidebar-menu-link active">
+                  <i className="bi bi-grid-fill"></i>
+                  <span>Dashboard</span>
+                </Link>
+              </li>
+            </ul>
+          </div>
+          <div className="sidebar-menu-section">
+            <div className="sidebar-menu-title">Jobs</div>
+            <ul className="sidebar-menu-list">
+              <li className="sidebar-menu-item">
+                <Link to="/explore" className="sidebar-menu-link">
+                  <i className="bi bi-search"></i>
+                  <span>Explore Jobs</span>
+                </Link>
+              </li>
               {user.active_role === 'customer' && (
                 <>
-                  <Link
-                    to="/my-jobs"
-                    className="px-4 py-2 border border-border text-text rounded-md text-sm font-medium hover:border-accent/40 transition-colors cursor-pointer"
-                  >
-                    My Postings
-                  </Link>
-                  <Link
-                    to="/jobs/create"
-                    className="px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
-                  >
-                    + Post a Job
-                  </Link>
+                  <li className="sidebar-menu-item">
+                    <Link to="/my-jobs" className="sidebar-menu-link">
+                      <i className="bi bi-briefcase"></i>
+                      <span>My Postings</span>
+                    </Link>
+                  </li>
+                  <li className="sidebar-menu-item">
+                    <Link to="/jobs/create" className="sidebar-menu-link">
+                      <i className="bi bi-plus-circle"></i>
+                      <span>Post a Job</span>
+                    </Link>
+                  </li>
                 </>
               )}
-              <Link
-                to="/explore"
-                className="px-4 py-2 border border-border text-text rounded-md text-sm font-medium hover:border-accent/40 transition-colors cursor-pointer"
-              >
-                Explore Jobs
-              </Link>
-            </div>
+            </ul>
           </div>
-
-          {/* Feedback Toasts */}
-          {actionSuccess && (
-            <div className="mb-6 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-bold">✓</span>
-                <span>{actionSuccess}</span>
-              </div>
-              <button
-                onClick={() => setActionSuccess('')}
-                className="text-text-secondary hover:text-text text-sm cursor-pointer ml-4"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-
-          {actionError && (
-            <div className="mb-6 p-4 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-bold">!</span>
-                <span>{actionError}</span>
-              </div>
-              <button
-                onClick={() => setActionError('')}
-                className="text-text-secondary hover:text-text text-sm cursor-pointer ml-4"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-
-          {/* Metric Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-            <div className="bg-panel p-6 rounded-lg border border-border">
-              <h3 className="text-text-secondary text-[13px] font-medium mb-1">Active Contracts</h3>
-              <p className="text-3xl font-display font-medium text-accent">{activeContracts.length}</p>
-              <p className="text-[11px] text-text-secondary mt-1">In progress or submitted</p>
-            </div>
-            <div className="bg-panel p-6 rounded-lg border border-border">
-              <h3 className="text-text-secondary text-[13px] font-medium mb-1">
-                {user.active_role === 'customer' ? 'Total Escrow Funded' : 'Total Contract Value'}
-              </h3>
-              <p className="text-3xl font-display font-medium text-accent">
-                ₱{totalAgreedEscrow.toLocaleString()}
-              </p>
-              <p className="text-[11px] text-text-secondary mt-1">Secured via Supabase</p>
-            </div>
-            <div className="bg-panel p-6 rounded-lg border border-border">
-              <h3 className="text-text-secondary text-[13px] font-medium mb-1">Completed Contracts</h3>
-              <p className="text-3xl font-display font-medium text-emerald-400">{completedContracts.length}</p>
-              <p className="text-[11px] text-text-secondary mt-1">Funds released</p>
-            </div>
-            <div className="bg-panel p-6 rounded-lg border border-border">
-              <h3 className="text-text-secondary text-[13px] font-medium mb-1">Pending Proposals</h3>
-              <p className="text-3xl font-display font-medium text-text">{pendingProposalsCount}</p>
-              <p className="text-[11px] text-text-secondary mt-1">Awaiting client review</p>
-            </div>
-          </div>
-
-          {/* Section 1: Active Contracts & Escrow (Part 3 Core) */}
-          <div className="bg-panel border border-border rounded-lg mb-10 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/50">
-              <div className="flex items-center gap-2">
-                <h2 className="font-display text-lg font-medium">Contracts & Escrow</h2>
-              </div>
-              <span className="text-xs text-text-secondary hidden sm:inline">
-                Funds held safely in escrow until client approval
-              </span>
-            </div>
-
-            {contracts.length === 0 ? (
-              <div className="px-6 py-12 text-center">
-                <div className="w-12 h-12 rounded-full bg-surface border border-border flex items-center justify-center mx-auto mb-3 text-xl">
-                  📄
-                </div>
-                <p className="font-display text-base font-medium mb-1">No contracts yet</p>
-                <p className="text-text-secondary text-sm max-w-md mx-auto mb-4">
-                  When a client accepts a proposal, an escrow-backed contract is automatically generated here.
-                </p>
-                {user.active_role === 'customer' ? (
-                  <Link
-                    to="/my-jobs"
-                    className="inline-block px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
-                  >
-                    View Your Postings
-                  </Link>
-                ) : (
-                  <Link
-                    to="/explore"
-                    className="inline-block px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
-                  >
-                    Browse Open Jobs
-                  </Link>
-                )}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-text-secondary text-[12px] uppercase tracking-wider border-b border-border bg-surface/30">
-                      <th className="text-left px-6 py-3 font-medium">Job Title</th>
-                      <th className="text-left px-6 py-3 font-medium">Counterparty</th>
-                      <th className="text-left px-6 py-3 font-medium">Escrow Amount</th>
-                      <th className="text-left px-6 py-3 font-medium">Status</th>
-                      <th className="text-right px-6 py-3 font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {contracts.map((c) => {
-                      const isClient = user.id === c.client_id;
-                      const partner = isClient ? c.freelancer : c.client;
-                      const partnerRole = isClient ? 'Freelancer' : 'Client';
-                      const partnerName = partner
-                        ? `${partner.first_name || ''} ${partner.last_name || ''}`.trim() || partner.email
-                        : 'Participant';
-
-                      return (
-                        <tr key={c.contract_id} className="hover:bg-surface/20 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="font-medium text-text">{c.jobs?.title || 'Job Posting'}</div>
-                            <div className="text-xs text-text-secondary mt-0.5">
-                              Created {new Date(c.created_at).toLocaleDateString()}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-text font-medium">{partnerName}</div>
-                            <div className="text-xs text-text-secondary">{partnerRole}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="font-semibold text-accent flex items-center gap-1.5">
-                              <span>₱{Number(c.agreed_amount || 0).toLocaleString()}</span>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">
-                                Escrow
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-medium border ${
-                                c.status === 'completed'
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                                  : c.status === 'submitted'
-                                  ? 'bg-sky-500/10 text-sky-400 border-sky-500/30'
-                                  : c.status === 'active'
-                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                                  : 'bg-surface text-text-secondary border-border'
-                              }`}
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                              {c.status === 'active'
-                                ? 'In Progress'
-                                : c.status === 'submitted'
-                                ? 'Work Submitted'
-                                : c.status === 'completed'
-                                ? 'Completed'
-                                : c.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            {/* Freelancer Action: Submit Work */}
-                            {!isClient && c.status === 'active' && (
-                              <button
-                                onClick={() => handleSubmitWork(c.contract_id)}
-                                disabled={actioningId === c.contract_id}
-                                className="px-3 py-1.5 bg-accent text-[#1A1305] rounded-md text-xs font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 cursor-pointer"
-                              >
-                                {actioningId === c.contract_id ? 'Submitting...' : 'Submit Work'}
-                              </button>
-                            )}
-
-                            {/* Client Action: Approve Deliverables & Release Funds (strictly from submitted status) */}
-                            {isClient && c.status === 'submitted' && (
-                              <button
-                                onClick={() => handleApproveAndRelease(c)}
-                                disabled={actioningId === c.contract_id}
-                                className="px-3 py-1.5 bg-emerald-500 text-black rounded-md text-xs font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
-                              >
-                                {actioningId === c.contract_id ? 'Releasing...' : 'Approve & Release Funds'}
-                              </button>
-                            )}
-
-                            {/* Client awaiting freelancer deliverables */}
-                            {isClient && c.status === 'active' && (
-                              <span className="text-xs text-text-secondary">
-                                Work in Progress
-                              </span>
-                            )}
-
-                            {/* Completed Badge */}
-                            {c.status === 'completed' && (
-                              <span className="text-xs text-emerald-400 font-medium">
-                                Funds Released ✓
-                              </span>
-                            )}
-
-                            {/* Freelancer awaiting client approval */}
-                            {!isClient && c.status === 'submitted' && (
-                              <span className="text-xs text-sky-400 font-medium">
-                                Awaiting Client Review
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Section 2: Proposals Tracking */}
-          <div className="bg-panel border border-border rounded-lg overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/50">
-              <h2 className="font-display text-lg font-medium">My Submitted Proposals</h2>
-              <Link to="/explore" className="text-sm text-accent hover:underline cursor-pointer">
-                Find more jobs
-              </Link>
-            </div>
-
-            {proposals.length === 0 ? (
-              <div className="px-6 py-12 text-center">
-                <p className="font-display text-base font-medium mb-1">No proposals yet</p>
-                <p className="text-text-secondary text-sm mb-4">
-                  Browse open jobs and submit your first proposal.
-                </p>
-                <Link
-                  to="/explore"
-                  className="inline-block px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
-                >
-                  Browse jobs
-                </Link>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-text-secondary text-[12px] uppercase tracking-wider border-b border-border bg-surface/30">
-                      <th className="text-left px-6 py-3 font-medium">Job</th>
-                      <th className="text-left px-6 py-3 font-medium">Bid Amount</th>
-                      <th className="text-left px-6 py-3 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {proposals.map((p) => (
-                      <tr key={p.proposal_id} className="hover:bg-surface/20 transition-colors">
-                        <td className="px-6 py-4 font-medium text-text">{p.jobs?.title || 'Job Posting'}</td>
-                        <td className="px-6 py-4 font-sans font-medium text-accent">
-                          ₱{Number(p.bid_amount || 0).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-medium border ${
-                              p.status === 'accepted'
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                                : p.status === 'rejected'
-                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                                : 'bg-surface text-text-secondary border-border'
-                            }`}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                            {p.status ?? 'pending'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+        </div>
+        <div className="sidebar-profile">
+          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop" alt="Profile" className="sidebar-profile-img" />
+          <div className="sidebar-profile-info">
+            <div className="sidebar-profile-name">{user.first_name || 'User'} {user.last_name || ''}</div>
+            <div className="sidebar-profile-email">{user.email}</div>
           </div>
         </div>
       </div>
-    </div>
+
+      <div className="main-wrapper">
+        <header className="navbar-custom">
+          <div className="navbar-left">
+            <button className="sidebar-toggle-btn me-2" id="sidebar-toggle">
+              <i className="bi bi-list"></i>
+            </button>
+          </div>
+          <div className="navbar-search-wrapper">
+            <input type="text" className="navbar-search-input" placeholder="Search anything in RaketBase..." />
+            <button className="navbar-search-btn"><i className="bi bi-search"></i></button>
+          </div>
+          <div className="navbar-actions">
+            <div className="dropdown ms-2">
+              <button className="navbar-profile-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop" alt="Profile" className="navbar-profile-img" />
+                <span className="navbar-profile-name d-none d-md-inline">{user.first_name || 'User'}</span>
+                <i className="bi bi-chevron-down navbar-profile-caret"></i>
+              </button>
+              <ul className="dropdown-menu dropdown-menu-end dropdown-menu-profile">
+                <li className="dropdown-header">Welcome !</li>
+                <li><Link className="dropdown-item" to="#"><i className="bi bi-person"></i> My Account</Link></li>
+                <li><Link className="dropdown-item" to="#"><i className="bi bi-gear"></i> Settings</Link></li>
+                <li><hr className="dropdown-divider" /></li>
+                <li><Link className="dropdown-item text-danger" to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><i className="bi bi-box-arrow-right"></i> Logout</Link></li>
+              </ul>
+            </div>
+          </div>
+        </header>
+
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Dashboard</h1>
+            <p className="page-subtitle">Manage your active contracts, escrow funds, and job applications.</p>
+          </div>
+        </div>
+
+        <div className="row g-4 mb-4">
+          <div className="col-12">
+            {actionSuccess && (
+              <div className="alert alert-success alert-dismissible fade show border-0 bg-success text-white" role="alert">
+                <i className="bi bi-check-circle me-2"></i>{actionSuccess}
+                <button type="button" className="btn-close btn-close-white" onClick={() => setActionSuccess('')}></button>
+              </div>
+            )}
+            {actionError && (
+              <div className="alert alert-danger alert-dismissible fade show border-0 bg-danger text-white" role="alert">
+                <i className="bi bi-exclamation-circle me-2"></i>{actionError}
+                <button type="button" className="btn-close btn-close-white" onClick={() => setActionError('')}></button>
+              </div>
+            )}
+            <div className="row g-4">
+              <div className="col-md-4">
+                <div className="card alert-green-card h-100">
+                  <div className="position-relative z-index-2">
+                    <span className="alert-green-badge">Welcome</span>
+                    <div className="alert-green-text mt-3" style={{ fontSize: '1.2rem' }}>Hello, {user.first_name || 'User'}!</div>
+                    <div className="mt-2 text-dark">You have {pendingProposalsCount} pending proposals.</div>
+                  </div>
+                  <svg className="alert-green-bg-shape" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="translate(50,50)">
+                      <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" />
+                      <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" transform="rotate(60)" />
+                      <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" transform="rotate(120)" />
+                    </g>
+                  </svg>
+                </div>
+              </div>
+
+              <div className="col-md-4">
+                <div className="card card-stat d-flex flex-column justify-content-between h-100">
+                  <div>
+                    <div className="card-header">
+                      <span className="stat-label">Active Contracts</span>
+                    </div>
+                    <div className="stat-value">{activeContracts.length}</div>
+                    <div className="trend-badge trend-up">
+                      <span>In progress or submitted</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-md-4">
+                <div className="card card-stat d-flex flex-column justify-content-between h-100">
+                  <div>
+                    <div className="card-header">
+                      <span className="stat-label">{user.active_role === 'customer' ? 'Total Escrow Funded' : 'Total Contract Value'}</span>
+                    </div>
+                    <div className="stat-value">₱{totalAgreedEscrow.toLocaleString()}</div>
+                    <div className="trend-badge trend-up">
+                      <i className="bi bi-shield-check"></i>
+                      <span>Secured via Supabase</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="row g-4">
+          <div className="col-xl-8 col-lg-8">
+            <div className="card mb-0 h-100">
+              <div className="card-header mb-2">
+                <h2 className="card-title">Contracts & Escrow</h2>
+              </div>
+              {contracts.length === 0 ? (
+                <div className="text-center p-5 text-muted">No contracts yet.</div>
+              ) : (
+                <div className="table-responsive p-3 pt-0">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Job Title</th>
+                        <th>Counterparty</th>
+                        <th>Escrow Amount</th>
+                        <th>Status</th>
+                        <th className="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="border-top-0">
+                      {contracts.map((c) => {
+                        const isClient = user.id === c.client_id;
+                        const partner = isClient ? c.freelancer : c.client;
+                        const partnerRole = isClient ? 'Freelancer' : 'Client';
+                        const partnerName = partner ? `${partner.first_name || ''} ${partner.last_name || ''}`.trim() || partner.email : 'Participant';
+                        return (
+                          <tr key={c.contract_id}>
+                            <td>
+                              <div className="fw-semibold text-dark">{c.jobs?.title || 'Job Posting'}</div>
+                              <div className="small text-muted">{new Date(c.created_at).toLocaleDateString()}</div>
+                            </td>
+                            <td>
+                              <div className="fw-medium text-dark">{partnerName}</div>
+                              <div className="small text-muted">{partnerRole}</div>
+                            </td>
+                            <td>
+                              <div className="fw-bold text-success">₱{Number(c.agreed_amount || 0).toLocaleString()}</div>
+                            </td>
+                            <td>
+                              <span className={`badge rounded-pill ${c.status === 'completed' ? 'bg-success' : c.status === 'submitted' ? 'bg-info' : 'bg-warning text-dark'}`}>
+                                {c.status}
+                              </span>
+                            </td>
+                            <td className="text-end">
+                              {!isClient && c.status === 'active' && (
+                                <button className="btn btn-sm btn-primary rounded-pill px-3" disabled={actioningId === c.contract_id} onClick={() => handleSubmitWork(c.contract_id)}>
+                                  {actioningId === c.contract_id ? 'Submitting...' : 'Submit Work'}
+                                </button>
+                              )}
+                              {isClient && c.status === 'submitted' && (
+                                <button className="btn btn-sm btn-success rounded-pill px-3" disabled={actioningId === c.contract_id} onClick={() => handleApproveAndRelease(c)}>
+                                  {actioningId === c.contract_id ? 'Releasing...' : 'Approve & Release'}
+                                </button>
+                              )}
+                              {isClient && c.status === 'active' && <span className="small text-muted fst-italic">Work in Progress</span>}
+                              {c.status === 'completed' && <span className="small text-success fw-medium"><i className="bi bi-check-all"></i> Released</span>}
+                              {!isClient && c.status === 'submitted' && <span className="small text-info fw-medium">Awaiting Review</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="col-xl-4 col-lg-4">
+            <div className="card h-100 mb-0 flex-grow-1">
+              <div className="card-header">
+                <h2 className="card-title">My Proposals</h2>
+              </div>
+              {proposals.length === 0 ? (
+                <div className="text-center p-5 text-muted">No proposals yet.</div>
+              ) : (
+                <div className="transaction-list mt-2">
+                  {proposals.map((p) => (
+                    <div className="transaction-item" key={p.proposal_id}>
+                      <div className="transaction-icon bg-forest-light text-lime">
+                        <i className="bi bi-file-earmark-text"></i>
+                      </div>
+                      <div className="transaction-info">
+                        <div className="transaction-name text-dark">{p.jobs?.title || 'Job Posting'}</div>
+                        <div className="transaction-date">Status: <span className="text-capitalize fw-medium">{p.status ?? 'pending'}</span></div>
+                      </div>
+                      <div className="transaction-amount text-success fw-bold">₱{Number(p.bid_amount || 0).toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </>
   );
 }
