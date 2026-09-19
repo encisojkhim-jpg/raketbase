@@ -110,9 +110,12 @@ export default function Explore() {
     <>
       {/* Sidebar Component */}
       <div className="sidebar-wrapper" id="sidebar">
-        <Link to="/" className="sidebar-brand text-decoration-none d-flex align-items-center gap-2">
-          <img src="/raketbase%20logo.png" alt="RaketBase Logo" style={{ height: '40px', objectFit: 'contain' }} />
-          <span>RaketBase</span>
+        <Link to="/" className="sidebar-brand text-decoration-none d-flex align-items-center gap-1" style={{ padding: '10px 0' }}>
+          <img src="/racketbaseSVG.svg" alt="RaketBase Logo" style={{ height: '50px', objectFit: 'contain', marginTop: '-8px' }} />
+          <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '24px', color: '#fff', letterSpacing: '0.5px', display: 'flex', alignItems: 'center' }}>
+            <span style={{ fontWeight: 800 }}>RAKET</span>
+            <span style={{ fontWeight: 400 }}>BASE</span>
+          </div>
         </Link>
         <div className="flex-grow-1 overflow-y-auto mt-4">
           <div className="sidebar-menu-section">
@@ -216,15 +219,19 @@ export default function Explore() {
         <div className="row g-4 px-3 mb-4">
           <div className="col-xl-9 col-lg-8 order-2 order-lg-1">
             <div className="d-flex gap-2 overflow-x-auto mb-4 pb-2" style={{ scrollbarWidth: 'none' }}>
-              {categories.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setActiveCategory(c.id)}
-                  className={`btn rounded-pill px-4 py-2 flex-shrink-0 fw-medium ${activeCategory === c.id ? 'btn-dark' : 'btn-outline-secondary bg-white'}`}
-                >
-                  {c.label} <span className="small opacity-75">({c.count})</span>
-                </button>
-              ))}
+              {categories.map((c) => {
+                const isActive = activeCategory === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setActiveCategory(c.id)}
+                    className={`btn rounded-pill px-4 py-2 flex-shrink-0 fw-medium ${isActive ? 'text-white' : 'btn-outline-secondary bg-white'}`}
+                    style={isActive ? { backgroundColor: '#FF5A1E', borderColor: '#FF5A1E' } : {}}
+                  >
+                    {c.label} <span className="small opacity-75">({c.count})</span>
+                  </button>
+                );
+              })}
             </div>
 
             {loading && <StateCard title="Loading jobs..." />}
@@ -344,9 +351,16 @@ function JobCard({ job, onOpen }) {
   return (
     <div className="card h-100 border transition-all" style={{ cursor: 'pointer' }} onClick={onOpen}>
       <div className="card-body d-flex flex-column">
-        <div className="d-flex justify-content-between align-items-start mb-3">
-          <span className="badge bg-light border text-dark fw-medium px-2 py-1">{categoryName}</span>
-          {posted && <span className="small text-muted"><i className="bi bi-clock me-1"></i>{posted}</span>}
+        <div className="mb-3">
+          <span className="badge bg-light border text-dark fw-semibold px-3 py-2 rounded-pill" style={{ fontSize: '0.85rem' }}>
+            {categoryName}
+          </span>
+          {posted && (
+            <div className="small text-muted mt-2 d-flex align-items-center">
+              <i className="bi bi-clock me-1"></i>
+              <span>Posted {posted}</span>
+            </div>
+          )}
         </div>
         <h5 className="card-title text-dark fw-bold mb-3 fs-5">
           {job.title || 'Untitled job'}

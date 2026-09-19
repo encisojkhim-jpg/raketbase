@@ -125,9 +125,12 @@ export default function Dashboard() {
     <>
       {/* Sidebar Component */}
       <div className="sidebar-wrapper" id="sidebar">
-        <Link to="/" className="sidebar-brand text-decoration-none d-flex align-items-center gap-2">
-          <img src="/raketbase%20logo.png" alt="RaketBase Logo" style={{ height: '40px', objectFit: 'contain' }} />
-          <span>RaketBase</span>
+        <Link to="/" className="sidebar-brand text-decoration-none d-flex align-items-center gap-1" style={{ padding: '10px 0' }}>
+          <img src="/racketbaseSVG.svg" alt="RaketBase Logo" style={{ height: '50px', objectFit: 'contain', marginTop: '-8px' }} />
+          <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '24px', color: '#fff', letterSpacing: '0.5px', display: 'flex', alignItems: 'center' }}>
+            <span style={{ fontWeight: 800 }}>RAKET</span>
+            <span style={{ fontWeight: 400 }}>BASE</span>
+          </div>
         </Link>
         <div className="flex-grow-1 overflow-y-auto mt-4">
           <div className="sidebar-menu-section">
@@ -234,15 +237,9 @@ export default function Dashboard() {
                   <div className="position-relative z-index-2">
                     <span className="alert-green-badge">Welcome</span>
                     <div className="alert-green-text mt-3" style={{ fontSize: '1.2rem' }}>Hello, {user.first_name || 'User'}!</div>
-                    <div className="mt-2 text-dark">You have {pendingProposalsCount} pending proposals.</div>
+                    <div className="mt-2 text-white">You have {pendingProposalsCount} pending proposals.</div>
                   </div>
-                  <svg className="alert-green-bg-shape" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <g transform="translate(50,50)">
-                      <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" />
-                      <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" transform="rotate(60)" />
-                      <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" transform="rotate(120)" />
-                    </g>
-                  </svg>
+                      <img src="/racketbaseSVG.svg" className="alert-green-bg-shape rocket-logo" alt="Raketbase Logo" />
                 </div>
               </div>
 
@@ -318,7 +315,7 @@ export default function Dashboard() {
                               <div className="fw-bold text-success">₱{Number(c.agreed_amount || 0).toLocaleString()}</div>
                             </td>
                             <td>
-                              <span className={`badge rounded-pill ${c.status === 'completed' ? 'bg-success' : c.status === 'submitted' ? 'bg-info' : 'bg-warning text-dark'}`}>
+                              <span className={`badge rounded-pill px-3 py-2 fw-medium ${c.status === 'completed' ? 'bg-success text-white' : c.status === 'submitted' ? 'bg-warning text-dark' : 'bg-info text-dark'}`} style={{ fontSize: '0.85rem' }}>
                                 {c.status}
                               </span>
                             </td>
@@ -333,9 +330,9 @@ export default function Dashboard() {
                                   {actioningId === c.contract_id ? 'Releasing...' : 'Approve & Release'}
                                 </button>
                               )}
-                              {isClient && c.status === 'active' && <span className="small text-muted fst-italic">Work in Progress</span>}
-                              {c.status === 'completed' && <span className="small text-success fw-medium"><i className="bi bi-check-all"></i> Released</span>}
-                              {!isClient && c.status === 'submitted' && <span className="small text-info fw-medium">Awaiting Review</span>}
+                              {isClient && c.status === 'active' && <span className="small text-dark fw-semibold fst-italic">Work in Progress</span>}
+                              {c.status === 'completed' && <span className="small text-success fw-bold"><i className="bi bi-check-all"></i> Released</span>}
+                              {!isClient && c.status === 'submitted' && <span className="small text-dark fw-bold">Awaiting Review</span>}
                             </td>
                           </tr>
                         );
@@ -356,18 +353,40 @@ export default function Dashboard() {
                 <div className="text-center p-5 text-muted">No proposals yet.</div>
               ) : (
                 <div className="transaction-list mt-2">
-                  {proposals.map((p) => (
-                    <div className="transaction-item" key={p.proposal_id}>
-                      <div className="transaction-icon bg-forest-light text-lime">
-                        <i className="bi bi-file-earmark-text"></i>
+                  {[...proposals].sort((a, b) => {
+                    const statusA = (a.status || 'pending').toLowerCase();
+                    const statusB = (b.status || 'pending').toLowerCase();
+                    const rank = { 'accepted': 1, 'pending': 2, 'rejected': 3 };
+                    return (rank[statusA] || 4) - (rank[statusB] || 4);
+                  }).map((p) => {
+                    const status = (p.status || 'pending').toLowerCase();
+                    let statusClass = 'btn btn-warning btn-sm text-dark';
+                    let displayStatus = 'Submitted';
+                    if (status === 'accepted') {
+                      statusClass = 'btn btn-success btn-sm text-white';
+                      displayStatus = 'Accepted';
+                    } else if (status === 'rejected') {
+                      statusClass = 'btn btn-danger btn-sm text-white';
+                      displayStatus = 'Rejected';
+                    }
+
+                    return (
+                      <div className="transaction-item align-items-center" key={p.proposal_id}>
+                        <div className="transaction-icon bg-forest-light text-lime">
+                          <i className="bi bi-file-earmark-text"></i>
+                        </div>
+                        <div className="transaction-info flex-grow-1">
+                          <div className="transaction-name text-dark fw-semibold mb-1">{p.jobs?.title || 'Job Posting'}</div>
+                          <div className="transaction-amount text-success fw-bold small">₱{Number(p.bid_amount || 0).toLocaleString()}</div>
+                        </div>
+                        <div className="ms-3 text-end">
+                          <span className={`${statusClass} rounded-pill px-3 fw-medium`} style={{ pointerEvents: 'none' }}>
+                            {displayStatus}
+                          </span>
+                        </div>
                       </div>
-                      <div className="transaction-info">
-                        <div className="transaction-name text-dark">{p.jobs?.title || 'Job Posting'}</div>
-                        <div className="transaction-date">Status: <span className="text-capitalize fw-medium">{p.status ?? 'pending'}</span></div>
-                      </div>
-                      <div className="transaction-amount text-success fw-bold">₱{Number(p.bid_amount || 0).toLocaleString()}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

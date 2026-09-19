@@ -46,11 +46,18 @@ export default function Register() {
       
       <div className="login-card">
         
-        <Link to="/" className="login-brand text-decoration-none d-flex justify-content-center">
-          <img src="/raketbase%20logo.png" alt="RaketBase Logo" style={{ height: '90px', objectFit: 'contain' }} />
-        </Link>
-        
-        <p className="login-subtitle">Create your account to start posting jobs or picking up work.</p>
+        <div className="text-center mb-4 mt-2">
+          <Link to="/" className="text-decoration-none d-flex flex-column align-items-center">
+            <div className="d-flex align-items-center justify-content-center mb-2">
+              <img src="/racketbaseSVG.svg" alt="RaketBase Logo" className="logo-shake" style={{ height: '100px', objectFit: 'contain', marginRight: '5px', marginTop: '-15px' }} />
+              <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '36px', color: '#072F1F', letterSpacing: '1px', display: 'flex', alignItems: 'center' }}>
+                <span style={{ fontWeight: 800 }}>RAKET</span>
+                <span style={{ fontWeight: 400 }}>BASE</span>
+              </div>
+            </div>
+            <p className="login-subtitle" style={{ marginTop: '5px', fontSize: '15px' }}>The Homebase for Your Next Big Raket.</p>
+          </Link>
+        </div>
         
         {error && (
           <div className="alert alert-danger py-2 mb-4" role="alert">
