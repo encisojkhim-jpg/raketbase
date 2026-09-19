@@ -117,6 +117,14 @@ exports.submitWork = async (req, res) => {
     const { id: contract_id } = req.params;
     const userId = req.user.id;
 
+    // Submitting work is a freelancer-mode action. Clients must switch modes first.
+    if (req.user.active_role !== 'freelancer') {
+      return res.status(403).json({
+        success: false,
+        error: 'Switch to Freelancer mode to submit work.'
+      });
+    }
+
     const { data: contract, error: fetchError } = await supabaseAdmin
       .from('contracts')
       .select('contract_id, client_id, freelancer_id, status')
@@ -162,6 +170,14 @@ exports.completeContract = async (req, res) => {
   try {
     const { id: contract_id } = req.params;
     const userId = req.user.id;
+
+    // Approving work & releasing escrow is a client-mode action. Freelancers must switch modes first.
+    if (req.user.active_role !== 'customer') {
+      return res.status(403).json({
+        success: false,
+        error: 'Switch to Client mode to approve work and release escrow funds.'
+      });
+    }
 
     const { data: contract, error: fetchError } = await supabaseAdmin
       .from('contracts')

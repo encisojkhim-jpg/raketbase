@@ -15,6 +15,25 @@
   --font-sans: "Inter", sans-serif;
 }
 
+/* Client mode — warm gold palette. Applied via <html data-mode="client">
+   (set by useThemeSync). Text/error colors stay constant across modes for
+   readability; only accent + the near-black surfaces get a subtle tint. */
+html[data-mode="client"] {
+  --color-bg: #14120E;
+  --color-panel: #1B1712;
+  --color-surface: #221D16;
+  --color-border: #332C1F;
+  --color-accent: #E7B24B;
+  --color-accent-hover: #F2C368;
+}
+
+/* Freelancer mode intentionally left at the original neutral palette
+   (no override here) — only Client mode gets the tinted look. */
+
+
 body {
   font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  transition: background-color 0.2s ease;
 }
+

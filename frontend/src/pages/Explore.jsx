@@ -3,11 +3,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { CloseIcon, ClockIcon } from '../components/Icons';
+import { useCurrentUser } from '../utils/currentUser';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 export default function Explore() {
   const navigate = useNavigate();
+
+  const currentUser = useCurrentUser();
+  const isClientMode = currentUser.active_role === 'customer';
 
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +21,7 @@ export default function Explore() {
   const [query, setQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [budget, setBudget] = useState(null);
+  const [hideTaken, setHideTaken] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,9 +65,15 @@ export default function Explore() {
     return { min: Math.min(...amounts), max: Math.max(...amounts) };
   }, [jobs]);
 
+  // Jobs in play after the "Hide taken jobs" option is applied
+  const pool = useMemo(
+    () => (hideTaken ? jobs.filter((j) => j.status === 'open') : jobs),
+    [jobs, hideTaken]
+  );
+
   const categories = useMemo(() => {
     const counts = {};
-    for (const j of jobs) {
+    for (const j of pool) {
       const name = j.categories?.category_name || 'Other';
       counts[name] = (counts[name] || 0) + 1;
     }
@@ -72,11 +83,11 @@ export default function Explore() {
       label: name,
       count,
     }));
-    return [{ id: 'all', name: 'All', label: 'All', count: jobs.length }, ...list];
-  }, [jobs]);
+    return [{ id: 'all', name: 'All', label: 'All', count: pool.length }, ...list];
+  }, [pool]);
 
   const visibleJobs = useMemo(() => {
-    return jobs.filter((j) => {
+    return pool.filter((j) => {
       if (activeCategory !== 'all') {
         const catName = (j.categories?.category_name || 'Other').toLowerCase().replace(/\s+/g, '-');
         if (catName !== activeCategory) return false;
@@ -93,12 +104,13 @@ export default function Explore() {
       }
       return true;
     });
-  }, [jobs, activeCategory, query, budget]);
+  }, [pool, activeCategory, query, budget]);
 
   function resetFilters() {
     setActiveCategory('all');
     setQuery('');
     setBudget(budgetBounds);
+    setHideTaken(false);
   }
 
   return (
@@ -120,6 +132,8 @@ export default function Explore() {
             budgetBounds={budgetBounds}
             resetFilters={resetFilters}
             resultCount={visibleJobs.length}
+            hideTaken={hideTaken}
+            setHideTaken={setHideTaken}
             onClose={() => setFiltersOpen(false)}
           />
         )}
@@ -127,12 +141,14 @@ export default function Explore() {
         <main className="min-w-0 flex-1">
           <div className="mb-6 flex items-center justify-between">
             <h1 className="font-display text-3xl font-semibold tracking-tight">Explore jobs</h1>
-            <button
-              onClick={() => navigate('/jobs/create')}
-              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer"
-            >
-              + Post a Job
-            </button>
+            {isClientMode && (
+              <button
+                onClick={() => navigate('/jobs/create')}
+                className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer"
+              >
+                + Post a Job
+              </button>
+            )}
           </div>
 
           <nav className="mb-6 flex gap-6 overflow-x-auto border-b border-border pb-3 text-[15px]">
@@ -180,7 +196,7 @@ export default function Explore() {
   );
 }
 
-function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultCount, onClose }) {
+function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultCount, hideTaken, setHideTaken, onClose }) {
   return (
     <aside className="hidden w-[280px] shrink-0 md:block">
       <div className="flex items-center justify-between">
@@ -203,6 +219,16 @@ function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultC
           bounds={budgetBounds}
           onReset={() => setBudget(budgetBounds)}
         />
+
+        <label className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-text-secondary">
+          <input
+            type="checkbox"
+            checked={hideTaken}
+            onChange={(e) => setHideTaken(e.target.checked)}
+            className="h-4 w-4 cursor-pointer accent-[color:var(--color-accent)]"
+          />
+          Hide taken jobs
+        </label>
 
         <div className="space-y-2 pt-2">
           <button className="w-full rounded-md bg-accent py-3 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer">
@@ -264,29 +290,50 @@ function RangeField({ label, unit, value, onChange, bounds, onReset }) {
 function JobCard({ job, onOpen }) {
   const categoryName = job.categories?.category_name || 'Uncategorized';
   const posted = formatDate(job.created_at);
+  const isTaken = job.status && job.status !== 'open';
 
   return (
-    <div className="flex flex-col rounded-lg border border-border bg-panel p-5 transition-colors hover:border-accent/40">
+    <div
+      className={`flex flex-col rounded-lg border p-5 transition-colors ${
+        isTaken
+          ? 'border-dashed border-border bg-surface/60 hover:border-text-secondary/50'
+          : 'border-border bg-panel hover:border-accent/40'
+      }`}
+    >
       <div className="mb-3 flex items-start justify-between gap-3">
         <span className="rounded-full border border-border px-2.5 py-1 text-[12px] text-text-secondary">
           {categoryName}
         </span>
-        {posted && (
-          <span className="flex shrink-0 items-center gap-1.5 text-[12px] text-text-secondary">
-            <ClockIcon className="h-3.5 w-3.5" />
-            {posted}
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {isTaken && (
+            <span className="rounded-full border border-error/40 bg-error/10 px-2.5 py-1 text-[12px] font-semibold text-error">
+              Job taken
+            </span>
+          )}
+          {posted && (
+            <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+              <ClockIcon className="h-3.5 w-3.5" />
+              {posted}
+            </span>
+          )}
+        </div>
       </div>
 
       <button onClick={onOpen} className="mb-2 text-left cursor-pointer">
-        <span className="font-display text-lg font-medium leading-snug hover:text-accent transition-colors">
+        <span
+          className={`font-display text-lg font-medium leading-snug transition-colors ${
+            isTaken ? 'text-text-secondary hover:text-text' : 'hover:text-accent'
+          }`}
+        >
           {job.title || 'Untitled job'}
         </span>
       </button>
 
       <p className="mb-4 text-[13px] font-medium text-text-secondary">
-        Budget: <span className="font-sans text-base font-semibold text-text">₱{job.budget ? Number(job.budget).toLocaleString() : '—'}</span>
+        Budget:{' '}
+        <span className={`font-sans text-base font-semibold ${isTaken ? 'text-text-secondary' : 'text-text'}`}>
+          ₱{job.budget ? Number(job.budget).toLocaleString() : '—'}
+        </span>
       </p>
 
       <p className="mb-4 line-clamp-3 text-[13px] leading-relaxed text-text-secondary">
@@ -297,7 +344,7 @@ function JobCard({ job, onOpen }) {
         onClick={onOpen}
         className="mt-auto rounded-md border border-border py-2.5 text-[13px] font-medium transition-colors hover:border-accent/40 hover:text-accent cursor-pointer"
       >
-        View & apply
+        {isTaken ? 'View details' : 'View & apply'}
       </button>
     </div>
   );

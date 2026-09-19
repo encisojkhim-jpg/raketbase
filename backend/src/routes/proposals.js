@@ -7,5 +7,7 @@ router.post('/', requireAuth, proposalsController.createProposal);
 router.get('/me', requireAuth, proposalsController.getMyProposals);
 router.patch('/:id/accept', requireAuth, proposalsController.acceptProposal);
 router.patch('/:id/reject', requireAuth, proposalsController.rejectProposal);
+router.patch('/:id/withdraw', requireAuth, proposalsController.withdrawProposal);
+router.patch('/:id/unwithdraw', requireAuth, proposalsController.unwithdrawProposal);
 
 module.exports = router;

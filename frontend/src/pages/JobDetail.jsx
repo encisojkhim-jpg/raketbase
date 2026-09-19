@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { ClockIcon } from '../components/Icons';
+import ProposalBlockedNotice from '../components/ProposalBlockedNotice';
+import { getProposalBlockReason } from '../utils/proposalEligibility';
+import { useCurrentUser } from '../utils/currentUser';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
@@ -22,6 +25,7 @@ export default function JobDetail() {
   const [submitSuccess, setSubmitSuccess] = useState('');
 
   const token = localStorage.getItem('token');
+  const currentUser = useCurrentUser();
 
   useEffect(() => {
     async function loadJob() {
@@ -194,7 +198,11 @@ export default function JobDetail() {
             </div>
 
             {/* In-page proposal submission section */}
-            {alreadyApplied ? (
+            {getProposalBlockReason(job, currentUser) ? (
+              <div className="mt-6 border-t border-border pt-6">
+                <ProposalBlockedNotice reason={getProposalBlockReason(job, currentUser)} />
+              </div>
+            ) : alreadyApplied ? (
               <div className="mt-6 border-t border-border pt-6">
                 <div className="flex items-center gap-2.5 rounded-md bg-accent/10 border border-accent/30 p-3.5 text-sm font-medium text-accent">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[#1A1305] text-xs font-bold">

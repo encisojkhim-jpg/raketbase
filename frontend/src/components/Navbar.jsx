@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeftIcon, SearchIcon, ChevronDownIcon } from './Icons';
+import { switchRole } from '../services/api';
+import { useCurrentUser, setCurrentUser, markModeSwitch } from '../utils/currentUser';
+import { showToast } from '../utils/toast';
+import { hasUnsavedChanges } from '../utils/unsavedChanges';
 
 export default function Navbar({
   showBack = false,
@@ -16,15 +20,11 @@ export default function Navbar({
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState('');
 
   const token = localStorage.getItem('token');
-  const user = (() => {
-    try {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    } catch {
-      return {};
-    }
-  })();
+  const user = useCurrentUser();
 
   const displayName =
     [user.first_name, user.last_name].filter(Boolean).join(' ') ||
@@ -56,6 +56,37 @@ export default function Navbar({
     });
     setDropdownOpen(false);
     navigate('/login');
+  }
+
+  // Switch between Client ('customer') and Freelancer modes in place (no reload).
+  // Waits for the server (PATCH /auth/switch-role), then updates the shared user
+  // so every page re-renders in the new mode. Client-only pages redirect to
+  // /dashboard via <ClientRoute />.
+  async function handleSwitchRole(newRole) {
+    const currentRole = user.active_role || 'customer';
+    if (switching || currentRole === newRole) return;
+
+    if (
+      newRole === 'freelancer' &&
+      hasUnsavedChanges() &&
+      !window.confirm('You have unsaved changes on this page. Switching to Freelancer mode will discard them. Switch anyway?')
+    ) {
+      return;
+    }
+
+    setSwitching(true);
+    setSwitchError('');
+    try {
+      const res = await switchRole(newRole);
+      const activeRole = res.user?.active_role || newRole;
+      markModeSwitch();
+      setCurrentUser({ ...user, ...(res.user || {}), active_role: activeRole });
+      showToast(`Switched to ${activeRole === 'freelancer' ? 'Freelancer' : 'Client'} mode`);
+    } catch (err) {
+      setSwitchError(err.message || 'Could not switch mode. Please try again.');
+    } finally {
+      setSwitching(false);
+    }
   }
 
   function handleBack() {
@@ -139,6 +170,30 @@ export default function Navbar({
           </Link>
         )}
 
+        {/* My Proposals link: where a freelancer tracks and manages their own bids */}
+        {user.active_role === 'freelancer' && (
+          <Link
+            to="/my-proposals"
+            className={`hidden text-sm font-medium transition-colors cursor-pointer sm:inline ${
+              location.pathname.startsWith('/my-proposals') ? 'text-accent font-semibold' : 'text-text-secondary hover:text-text'
+            }`}
+          >
+            My Proposals
+          </Link>
+        )}
+
+        {/* Profile link: where a freelancer edits bio, skills, and portfolio URL */}
+        {user.active_role === 'freelancer' && (
+          <Link
+            to="/profile"
+            className={`hidden text-sm font-medium transition-colors cursor-pointer sm:inline ${
+              location.pathname === '/profile' ? 'text-accent font-semibold' : 'text-text-secondary hover:text-text'
+            }`}
+          >
+            Profile
+          </Link>
+        )}
+
         {/* Admin panel link (admin accounts only) */}
         {user.role === 'admin' && (
           <Link
@@ -173,6 +228,50 @@ export default function Navbar({
           </Link>
         )}
 
+        {/* Client | Freelancer mode toggle */}
+        {token && (
+          <div className="relative">
+            <div
+              role="group"
+              aria-label="Switch between client and freelancer mode"
+              className={`flex items-center rounded-full border border-border bg-surface p-0.5 text-xs font-semibold ${
+                switching ? 'opacity-60' : ''
+              }`}
+            >
+              {[
+                { value: 'customer', label: 'Client' },
+                { value: 'freelancer', label: 'Freelancer' },
+              ].map((opt) => {
+                const isActive = (user.active_role || 'customer') === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleSwitchRole(opt.value)}
+                    disabled={switching}
+                    aria-pressed={isActive}
+                    className={`rounded-full px-3 py-1 transition-colors ${
+                      isActive
+                        ? 'bg-accent text-[#1A1305] cursor-default'
+                        : 'text-text-secondary hover:text-text cursor-pointer'
+                    } disabled:cursor-not-allowed`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            {switchError && (
+              <p
+                role="alert"
+                className="absolute right-0 top-full z-50 mt-2 w-56 rounded-md border border-error/40 bg-panel px-3 py-2 text-xs text-error shadow-2xl"
+              >
+                {switchError}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* User Profile Avatar with Pure Logout & Identity Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button
@@ -194,7 +293,7 @@ export default function Navbar({
                   <p className="text-xs text-text-secondary truncate mt-0.5">{email}</p>
                 )}
                 <span className="inline-block mt-1.5 rounded bg-surface border border-border px-2 py-0.5 text-[10px] font-medium text-accent uppercase tracking-wider">
-                  {user.role || 'Freelancer'}
+                  {user.role === 'admin' ? 'Admin' : user.active_role === 'freelancer' ? 'Freelancer' : 'Client'}
                 </span>
               </div>
 

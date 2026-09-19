@@ -1,6 +1,8 @@
 const { supabaseAdmin } = require('../config/supabase');
 
-// GET /api/v1/jobs - Fetch all open jobs (with optional category filtering)
+// GET /api/v1/jobs - Fetch all jobs (with optional category filtering).
+// Open jobs come first (newest first); assigned/completed jobs follow so the
+// Explore page can show them as "Job taken".
 exports.getAllJobs = async (req, res) => {
   try {
     const { category_id } = req.query;
@@ -8,7 +10,6 @@ exports.getAllJobs = async (req, res) => {
     let query = supabaseAdmin
       .from('jobs')
       .select('*, categories(category_name), users!jobs_client_id_fkey(first_name, last_name)')
-      .eq('status', 'open')
       .order('created_at', { ascending: false });
 
     if (category_id) {
@@ -19,7 +20,12 @@ exports.getAllJobs = async (req, res) => {
 
     if (error) throw error;
 
-    return res.status(200).json({ success: true, data: jobs });
+    // Stable sort: open jobs first, otherwise keep newest-first order
+    const sorted = [...jobs].sort(
+      (a, b) => Number(b.status === 'open') - Number(a.status === 'open')
+    );
+
+    return res.status(200).json({ success: true, data: sorted });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }
@@ -75,7 +81,8 @@ exports.getMyJobs = async (req, res) => {
     if (error) throw error;
 
     const withCounts = (jobs || []).map((job) => {
-      const proposals = job.proposals || [];
+      // Withdrawn proposals are invisible to clients, so they don't count here either.
+      const proposals = (job.proposals || []).filter((p) => p.status !== 'withdrawn');
       return {
         ...job,
         proposal_count: proposals.length,

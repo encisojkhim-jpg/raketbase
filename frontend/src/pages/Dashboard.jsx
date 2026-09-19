@@ -1,39 +1,40 @@
 // Dashboard.jsx — Contracts, Escrow & Proposals Tracker (Member 4 — Part 3)
 // Features:
 // 1. Shared Navbar with navigable logo and user profile dropdown
-// 2. Metrics summary cards (Active Contracts, Escrow / Earnings, Completed, Proposals)
-// 3. Contracts & Escrow management:
-//    - View active, submitted, and completed contracts with partner info
-//    - Freelancer: "Submit Work" deliverable action (transitions 'active' -> 'submitted')
-//    - Client: "Approve & Release Funds" escrow release action (transitions 'submitted'/'active' -> 'completed')
-// 4. Proposals tracking table with status badges
+// 2. Mode-specific metrics summary cards (Active Contracts, Escrow / Earnings, Completed, Proposals)
+// 3. Contracts & Escrow management, scoped to the current mode:
+//    - Client mode: only contracts where you're the client
+//      - "Approve & Release Funds" escrow release action (transitions 'submitted' -> 'completed')
+//    - Freelancer mode: only contracts where you're the freelancer
+//      - "Submit Work" deliverable action (transitions 'active' -> 'submitted')
+// 4. Client mode: pending-proposal summary linking to My Postings for full review.
+//    Freelancer mode: your own submitted proposals ("active bids") tracking table.
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import {
   getMyProposals,
+  getMyJobs,
   getContracts,
   submitContractWork,
   completeContract,
 } from '../services/api';
+import { useCurrentUser } from '../utils/currentUser';
 
 export default function Dashboard() {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState([]);
+  const [myJobs, setMyJobs] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
   const [actioningId, setActioningId] = useState(null);
 
-  const user = (() => {
-    try {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    } catch {
-      return {};
-    }
-  })();
+  const user = useCurrentUser();
+  // 'customer' active_role is Client mode; anything else is Freelancer mode.
+  const isClientMode = (user.active_role || 'customer') === 'customer';
 
   const loadData = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -43,15 +44,26 @@ export default function Dashboard() {
     }
 
     try {
-      const [propRes, contractRes] = await Promise.allSettled([
-        getMyProposals(),
+      // Client mode needs job postings (for the pending-review count); Freelancer
+      // mode needs the proposals you've submitted ("active bids"). Contracts are
+      // fetched either way and then filtered per-mode below.
+      const [modeRes, contractRes] = await Promise.allSettled([
+        isClientMode ? getMyJobs() : getMyProposals(),
         getContracts(),
       ]);
 
-      if (propRes.status === 'fulfilled') {
-        const pData = propRes.value;
-        setProposals(Array.isArray(pData) ? pData : pData.data || []);
+      if (modeRes.status === 'fulfilled') {
+        const mData = modeRes.value;
+        const list = Array.isArray(mData) ? mData : mData.data || [];
+        if (isClientMode) {
+          setMyJobs(list);
+          setProposals([]);
+        } else {
+          setProposals(list);
+          setMyJobs([]);
+        }
       } else {
+        setMyJobs([]);
         setProposals([]);
       }
 
@@ -64,7 +76,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, isClientMode]);
 
   useEffect(() => {
     loadData();
@@ -115,11 +127,22 @@ export default function Dashboard() {
     );
   }
 
-  // Summary metrics calculation
-  const activeContracts = contracts.filter((c) => c.status === 'active' || c.status === 'submitted');
-  const completedContracts = contracts.filter((c) => c.status === 'completed');
-  const totalAgreedEscrow = contracts.reduce((sum, c) => sum + Number(c.agreed_amount || 0), 0);
-  const pendingProposalsCount = proposals.filter((p) => p.status === 'pending').length;
+  // Scope contracts to the current mode: Client mode only sees contracts where
+  // you're the client, Freelancer mode only sees ones where you're the freelancer.
+  const modeContracts = contracts.filter((c) =>
+    isClientMode ? c.client_id === user.user_id : c.freelancer_id === user.user_id
+  );
+
+  // Summary metrics calculation (mode-scoped)
+  const activeContracts = modeContracts.filter((c) => c.status === 'active' || c.status === 'submitted');
+  const completedContracts = modeContracts.filter((c) => c.status === 'completed');
+  const totalAgreedEscrow = modeContracts.reduce((sum, c) => sum + Number(c.agreed_amount || 0), 0);
+
+  // Client mode: proposals awaiting review across all your job postings.
+  // Freelancer mode: your own bids still awaiting a decision.
+  const pendingProposalsCount = isClientMode
+    ? myJobs.reduce((sum, j) => sum + Number(j.pending_count || 0), 0)
+    : proposals.filter((p) => p.status === 'pending').length;
 
   return (
     <div className="min-h-screen bg-bg text-text">
@@ -201,7 +224,7 @@ export default function Dashboard() {
             </div>
             <div className="bg-panel p-6 rounded-lg border border-border">
               <h3 className="text-text-secondary text-[13px] font-medium mb-1">
-                {user.active_role === 'customer' ? 'Total Escrow Funded' : 'Total Contract Value'}
+                {isClientMode ? 'Total Escrow Funded' : 'Total Contract Value'}
               </h3>
               <p className="text-3xl font-display font-medium text-accent">
                 ₱{totalAgreedEscrow.toLocaleString()}
@@ -213,25 +236,38 @@ export default function Dashboard() {
               <p className="text-3xl font-display font-medium text-emerald-400">{completedContracts.length}</p>
               <p className="text-[11px] text-text-secondary mt-1">Funds released</p>
             </div>
-            <div className="bg-panel p-6 rounded-lg border border-border">
-              <h3 className="text-text-secondary text-[13px] font-medium mb-1">Pending Proposals</h3>
-              <p className="text-3xl font-display font-medium text-text">{pendingProposalsCount}</p>
-              <p className="text-[11px] text-text-secondary mt-1">Awaiting client review</p>
-            </div>
+            {isClientMode ? (
+              <Link
+                to="/my-jobs"
+                className="bg-panel p-6 rounded-lg border border-border hover:border-accent/40 transition-colors cursor-pointer"
+              >
+                <h3 className="text-text-secondary text-[13px] font-medium mb-1">Proposals to Review</h3>
+                <p className="text-3xl font-display font-medium text-text">{pendingProposalsCount}</p>
+                <p className="text-[11px] text-accent mt-1">Across your job postings &rarr;</p>
+              </Link>
+            ) : (
+              <div className="bg-panel p-6 rounded-lg border border-border">
+                <h3 className="text-text-secondary text-[13px] font-medium mb-1">Pending Proposals</h3>
+                <p className="text-3xl font-display font-medium text-text">{pendingProposalsCount}</p>
+                <p className="text-[11px] text-text-secondary mt-1">Awaiting client review</p>
+              </div>
+            )}
           </div>
 
-          {/* Section 1: Active Contracts & Escrow (Part 3 Core) */}
+          {/* Section 1: Active Contracts & Escrow (Part 3 Core), scoped to the current mode */}
           <div className="bg-panel border border-border rounded-lg mb-10 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/50">
               <div className="flex items-center gap-2">
-                <h2 className="font-display text-lg font-medium">Contracts & Escrow</h2>
+                <h2 className="font-display text-lg font-medium">
+                  {isClientMode ? 'Contracts & Escrow (as Client)' : 'Contracts & Escrow (as Freelancer)'}
+                </h2>
               </div>
               <span className="text-xs text-text-secondary hidden sm:inline">
                 Funds held safely in escrow until client approval
               </span>
             </div>
 
-            {contracts.length === 0 ? (
+            {modeContracts.length === 0 ? (
               <div className="px-6 py-12 text-center">
                 <div className="w-12 h-12 rounded-full bg-surface border border-border flex items-center justify-center mx-auto mb-3 text-xl">
                   📄
@@ -240,7 +276,7 @@ export default function Dashboard() {
                 <p className="text-text-secondary text-sm max-w-md mx-auto mb-4">
                   When a client accepts a proposal, an escrow-backed contract is automatically generated here.
                 </p>
-                {user.active_role === 'customer' ? (
+                {isClientMode ? (
                   <Link
                     to="/my-jobs"
                     className="inline-block px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
@@ -269,8 +305,8 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {contracts.map((c) => {
-                      const isClient = user.id === c.client_id;
+                    {modeContracts.map((c) => {
+                      const isClient = user.user_id === c.client_id;
                       const partner = isClient ? c.freelancer : c.client;
                       const partnerRole = isClient ? 'Freelancer' : 'Client';
                       const partnerName = partner
@@ -382,66 +418,99 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Section 2: Proposals Tracking */}
-          <div className="bg-panel border border-border rounded-lg overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/50">
-              <h2 className="font-display text-lg font-medium">My Submitted Proposals</h2>
-              <Link to="/explore" className="text-sm text-accent hover:underline cursor-pointer">
-                Find more jobs
-              </Link>
-            </div>
-
-            {proposals.length === 0 ? (
-              <div className="px-6 py-12 text-center">
-                <p className="font-display text-base font-medium mb-1">No proposals yet</p>
+          {/* Section 2: mode-specific proposals view */}
+          {isClientMode ? (
+            /* Client mode: a summary + link, not the full review UI (that lives on My Postings) */
+            <div className="bg-panel border border-border rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/50">
+                <h2 className="font-display text-lg font-medium">Proposals Waiting for Review</h2>
+              </div>
+              <div className="px-6 py-10 text-center">
+                <p className="text-3xl font-display font-medium text-accent mb-1">{pendingProposalsCount}</p>
                 <p className="text-text-secondary text-sm mb-4">
-                  Browse open jobs and submit your first proposal.
+                  {pendingProposalsCount === 0
+                    ? 'No pending proposals across your job postings right now.'
+                    : `Pending proposal${pendingProposalsCount === 1 ? '' : 's'} across your job postings.`}
                 </p>
                 <Link
-                  to="/explore"
+                  to="/my-jobs"
                   className="inline-block px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
                 >
-                  Browse jobs
+                  Review Proposals
                 </Link>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-text-secondary text-[12px] uppercase tracking-wider border-b border-border bg-surface/30">
-                      <th className="text-left px-6 py-3 font-medium">Job</th>
-                      <th className="text-left px-6 py-3 font-medium">Bid Amount</th>
-                      <th className="text-left px-6 py-3 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {proposals.map((p) => (
-                      <tr key={p.proposal_id} className="hover:bg-surface/20 transition-colors">
-                        <td className="px-6 py-4 font-medium text-text">{p.jobs?.title || 'Job Posting'}</td>
-                        <td className="px-6 py-4 font-sans font-medium text-accent">
-                          ₱{Number(p.bid_amount || 0).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-medium border ${
-                              p.status === 'accepted'
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                                : p.status === 'rejected'
-                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                                : 'bg-surface text-text-secondary border-border'
-                            }`}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                            {p.status ?? 'pending'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            </div>
+          ) : (
+            /* Freelancer mode: the bids you've submitted */
+            <div className="bg-panel border border-border rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/50">
+                <h2 className="font-display text-lg font-medium">My Active Bids</h2>
+                <div className="flex items-center gap-4">
+                  <Link to="/my-proposals" className="text-sm text-accent hover:underline cursor-pointer">
+                    Manage proposals
+                  </Link>
+                  <Link to="/explore" className="text-sm text-accent hover:underline cursor-pointer">
+                    Find more jobs
+                  </Link>
+                </div>
               </div>
-            )}
-          </div>
+
+              {(() => {
+                // Withdrawn proposals are managed on /my-proposals, not shown here.
+                const activeBids = proposals.filter((p) => p.status !== 'withdrawn');
+                return activeBids.length === 0 ? (
+                <div className="px-6 py-12 text-center">
+                  <p className="font-display text-base font-medium mb-1">No proposals yet</p>
+                  <p className="text-text-secondary text-sm mb-4">
+                    Browse open jobs and submit your first proposal.
+                  </p>
+                  <Link
+                    to="/explore"
+                    className="inline-block px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
+                  >
+                    Browse jobs
+                  </Link>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-text-secondary text-[12px] uppercase tracking-wider border-b border-border bg-surface/30">
+                        <th className="text-left px-6 py-3 font-medium">Job</th>
+                        <th className="text-left px-6 py-3 font-medium">Bid Amount</th>
+                        <th className="text-left px-6 py-3 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {activeBids.map((p) => (
+                        <tr key={p.proposal_id} className="hover:bg-surface/20 transition-colors">
+                          <td className="px-6 py-4 font-medium text-text">{p.jobs?.title || 'Job Posting'}</td>
+                          <td className="px-6 py-4 font-sans font-medium text-accent">
+                            ₱{Number(p.bid_amount || 0).toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-medium border ${
+                                p.status === 'accepted'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  : p.status === 'rejected'
+                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                                  : 'bg-surface text-text-secondary border-border'
+                              }`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                              {p.status ?? 'pending'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+              })()}
+            </div>
+          )}
         </div>
       </div>
     </div>

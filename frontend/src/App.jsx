@@ -6,14 +6,26 @@ import Explore from './pages/Explore';
 import JobDetail from './pages/JobDetail';
 import FreelancerProfile from './pages/FreelancerProfile';
 import ProtectedRoute from './pages/ProtectedRoute';
+import ClientRoute from './pages/ClientRoute';
+import FreelancerRoute from './pages/FreelancerRoute';
+import Profile from './pages/Profile';
+import MyProposals from './pages/MyProposals';
+import Toaster from './components/Toaster';
 import CreateJob from './pages/CreateJob';
 import ClientJobView from './pages/ClientJobView';
 import DisputeTicket from './pages/DisputeTicket';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminRoute from './pages/AdminRoute';
+import { useThemeSync } from './utils/useThemeSync';
 
 function App() {
+  // Keeps <html data-mode="..."> in sync with active_role so the Client/
+  // Freelancer color palettes (index.css) apply app-wide, live.
+  useThemeSync();
+
   return (
+    <>
+    <Toaster />
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
@@ -24,11 +36,19 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/explore" element={<Explore />} />
-        <Route path="/jobs/create" element={<CreateJob />} />
         <Route path="/jobs/:id" element={<JobDetail />} />
         <Route path="/explore/:id" element={<FreelancerProfile />} />
-        <Route path="/my-jobs" element={<ClientJobView />} />
-        <Route path="/my-jobs/:id" element={<ClientJobView />} />
+        {/* Client-mode only: redirects freelancers to /dashboard with a toast */}
+        <Route element={<ClientRoute />}>
+          <Route path="/jobs/create" element={<CreateJob />} />
+          <Route path="/my-jobs" element={<ClientJobView />} />
+          <Route path="/my-jobs/:id" element={<ClientJobView />} />
+        </Route>
+        {/* Freelancer-mode only: redirects clients to /dashboard with a toast */}
+        <Route element={<FreelancerRoute />}>
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/my-proposals" element={<MyProposals />} />
+        </Route>
         {/* Part 4: any contract participant can file a dispute */}
         <Route path="/contracts/:id/dispute" element={<DisputeTicket />} />
       </Route>
@@ -40,6 +60,7 @@ function App() {
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
+    </>
   );
 }
 

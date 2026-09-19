@@ -5,9 +5,13 @@
 // 3. Duplicate proposal guard: checks existing submissions, disables re-application, and shows 'Already Applied'
 // 4. Deferred form validation: errors only show after onBlur (touched) or on submit click, never on initial load
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { ClockIcon } from '../components/Icons';
+import ProposalBlockedNotice from '../components/ProposalBlockedNotice';
+import { getProposalBlockReason } from '../utils/proposalEligibility';
+import { isProfileComplete } from '../utils/profileCompleteness';
+import { useCurrentUser } from '../utils/currentUser';
 
 // Configurable API base URL, defaulting to local backend port 5000
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
@@ -15,6 +19,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/
 export default function FreelancerProfile() {
   // Extract job ID parameter from the route URL (/explore/:id)
   const { id } = useParams();
+  const currentUser = useCurrentUser();
 
   // Job data loading state
   const [job, setJob] = useState(null);
@@ -29,6 +34,10 @@ export default function FreelancerProfile() {
 
   // Duplicate proposal tracking
   const [alreadyApplied, setAlreadyApplied] = useState(false);
+  // If the freelancer previously withdrew their proposal for this job, they need
+  // to go restore it (My Proposals) rather than submit a fresh one — a duplicate
+  // job_id + freelancer_id row isn't allowed at the database level.
+  const [withdrawnNotice, setWithdrawnNotice] = useState(false);
 
   // Field interaction tracking to prevent premature validation on initial load
   const [touched, setTouched] = useState({ bidAmount: false, coverLetter: false });
@@ -77,10 +86,10 @@ export default function FreelancerProfile() {
         });
         const body = await res.json();
         if (!cancelled && res.ok && body.success && Array.isArray(body.data)) {
-          const hasApplied = body.data.some(
-            (p) => String(p.job_id) === String(id)
-          );
-          if (hasApplied) {
+          const existing = body.data.find((p) => String(p.job_id) === String(id));
+          if (existing?.status === 'withdrawn') {
+            setWithdrawnNotice(true);
+          } else if (existing) {
             setAlreadyApplied(true);
           }
         }
@@ -180,6 +189,8 @@ export default function FreelancerProfile() {
     }
   }
 
+  const blockReason = getProposalBlockReason(job, currentUser);
+
   return (
     <div className="min-h-screen bg-bg text-text">
       {/* Shared Navbar with navigable RaketBase logo, Back button, and Profile dropdown */}
@@ -235,12 +246,41 @@ export default function FreelancerProfile() {
               </p>
 
               {/* Duplicate Proposal Guard Banner */}
+              {blockReason ? (
+                <ProposalBlockedNotice reason={blockReason} className="mt-4" />
+              ) : withdrawnNotice ? (
+                <div className="mt-4 rounded-md border border-border bg-surface p-4 text-sm">
+                  <p className="font-semibold text-text">You withdrew your proposal for this job</p>
+                  <p className="mt-1 text-text-secondary">
+                    You can restore it — as-is or with changes — from My Proposals.
+                  </p>
+                  <Link
+                    to="/my-proposals"
+                    className="mt-3 inline-block rounded-md bg-accent px-4 py-2 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer"
+                  >
+                    Go to My Proposals
+                  </Link>
+                </div>
+              ) : (
+              <>
               {alreadyApplied && (
                 <div className="mt-4 flex items-center gap-2.5 rounded-md bg-accent/10 border border-accent/30 p-3 text-sm font-medium text-accent">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[#1A1305] text-xs font-bold">
                     ✓
                   </span>
                   <span>Already Applied — You have already submitted a proposal for this job.</span>
+                </div>
+              )}
+
+              {!alreadyApplied && !isProfileComplete(currentUser) && (
+                <div className="mt-4 rounded-md border border-border bg-surface p-3 text-[13px]">
+                  <p className="font-medium text-text">Complete your profile</p>
+                  <p className="mt-1 text-text-secondary">
+                    Add a bio and skills so clients have more to go on when they review your proposal.
+                  </p>
+                  <Link to="/profile" className="mt-2 inline-block font-medium text-accent hover:underline cursor-pointer">
+                    Complete profile &rarr;
+                  </Link>
                 </div>
               )}
 
@@ -309,6 +349,8 @@ export default function FreelancerProfile() {
                   </p>
                 )}
               </form>
+              </>
+              )}
             </aside>
           </div>
         )}

@@ -7,10 +7,42 @@ exports.createProposal = async (req, res) => {
     // req.user is appended by JWT auth middleware
     const freelancer_id = req.user.id;
 
+    // Bidding is a freelancer-mode action. Clients must switch modes first.
+    if (req.user.active_role !== 'freelancer') {
+      return res.status(403).json({
+        success: false,
+        error: 'Switch to Freelancer mode to submit proposals.'
+      });
+    }
+
     if (!job_id || !bid_amount || !cover_letter) {
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: job_id, bid_amount, and cover_letter'
+      });
+    }
+
+    // Nobody may bid on a job they posted themselves, regardless of mode.
+    const { data: job, error: jobError } = await supabaseAdmin
+      .from('jobs')
+      .select('job_id, client_id, status')
+      .eq('job_id', job_id)
+      .single();
+
+    if (jobError || !job) {
+      return res.status(404).json({ success: false, error: 'Job not found' });
+    }
+    if (job.client_id === freelancer_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'You cannot submit a proposal on your own job posting.'
+      });
+    }
+    // Assigned/completed jobs are taken and no longer accept proposals.
+    if (job.status !== 'open') {
+      return res.status(409).json({
+        success: false,
+        error: 'This job has been taken and is no longer accepting proposals.'
       });
     }
 
@@ -72,6 +104,14 @@ exports.getProposalsForJob = async (req, res) => {
     const { id: job_id } = req.params;
     const client_id = req.user.id;
 
+    // Reviewing proposals is a client-mode action. Freelancers must switch modes first.
+    if (req.user.active_role !== 'customer') {
+      return res.status(403).json({
+        success: false,
+        error: 'Switch to Client mode to view proposals on your job.'
+      });
+    }
+
     const { data: job, error: jobError } = await supabaseAdmin
       .from('jobs')
       .select('job_id, client_id, title, budget, status')
@@ -85,10 +125,13 @@ exports.getProposalsForJob = async (req, res) => {
       return res.status(403).json({ success: false, error: 'You do not own this job posting' });
     }
 
+    // Withdrawn proposals are hidden from the client's view entirely — from
+    // their perspective a withdrawn proposal simply isn't there anymore.
     const { data: proposals, error } = await supabaseAdmin
       .from('proposals')
       .select('*, users!proposals_freelancer_id_fkey(first_name, last_name, email, bio, skills, portfolio_url)')
       .eq('job_id', job_id)
+      .neq('status', 'withdrawn')
       .order('submitted_at', { ascending: false });
 
     if (error) throw error;
@@ -106,6 +149,14 @@ exports.acceptProposal = async (req, res) => {
   try {
     const { id: proposal_id } = req.params;
     const client_id = req.user.id;
+
+    // Accepting a proposal is a client-mode action. Freelancers must switch modes first.
+    if (req.user.active_role !== 'customer') {
+      return res.status(403).json({
+        success: false,
+        error: 'Switch to Client mode to accept proposals.'
+      });
+    }
 
     const { data: contract, error: rpcError } = await supabaseAdmin.rpc(
       'accept_proposal_and_create_contract',
@@ -145,6 +196,14 @@ exports.rejectProposal = async (req, res) => {
     const { id: proposal_id } = req.params;
     const client_id = req.user.id;
 
+    // Rejecting a proposal is a client-mode action. Freelancers must switch modes first.
+    if (req.user.active_role !== 'customer') {
+      return res.status(403).json({
+        success: false,
+        error: 'Switch to Client mode to reject proposals.'
+      });
+    }
+
     const { data: proposal, error: proposalError } = await supabaseAdmin
       .from('proposals')
       .select('*, jobs(job_id, client_id)')
@@ -171,6 +230,115 @@ exports.rejectProposal = async (req, res) => {
     if (error) throw error;
 
     return res.status(200).json({ success: true, data: rejected });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// PATCH /api/v1/proposals/:id/withdraw - Withdraw a pending proposal (freelancer-only, must own it).
+// Withdrawn proposals are hidden from the client's proposal list but kept on record so the
+// freelancer can restore (unwithdraw) them later instead of losing the cover letter/bid.
+exports.withdrawProposal = async (req, res) => {
+  try {
+    const { id: proposal_id } = req.params;
+    const freelancer_id = req.user.id;
+
+    const { data: proposal, error: proposalError } = await supabaseAdmin
+      .from('proposals')
+      .select('proposal_id, freelancer_id, status')
+      .eq('proposal_id', proposal_id)
+      .single();
+
+    if (proposalError || !proposal) {
+      return res.status(404).json({ success: false, error: 'Proposal not found' });
+    }
+    if (proposal.freelancer_id !== freelancer_id) {
+      return res.status(403).json({ success: false, error: 'You do not own this proposal' });
+    }
+    if (proposal.status !== 'pending') {
+      return res.status(409).json({
+        success: false,
+        error: `Cannot withdraw a proposal that is already ${proposal.status}.`,
+      });
+    }
+
+    const { data: withdrawn, error } = await supabaseAdmin
+      .from('proposals')
+      .update({ status: 'withdrawn' })
+      .eq('proposal_id', proposal_id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, data: withdrawn });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// PATCH /api/v1/proposals/:id/unwithdraw - Restore a withdrawn proposal back to 'pending'
+// (freelancer-only, must own it). Optionally accepts a new bid_amount and/or cover_letter,
+// letting the freelancer revise their proposal as part of resubmitting it. Blocked if the
+// job is no longer open (e.g. it was assigned to someone else while withdrawn).
+exports.unwithdrawProposal = async (req, res) => {
+  try {
+    const { id: proposal_id } = req.params;
+    const freelancer_id = req.user.id;
+    const { bid_amount, cover_letter } = req.body || {};
+
+    const { data: proposal, error: proposalError } = await supabaseAdmin
+      .from('proposals')
+      .select('proposal_id, freelancer_id, status, jobs(job_id, status)')
+      .eq('proposal_id', proposal_id)
+      .single();
+
+    if (proposalError || !proposal) {
+      return res.status(404).json({ success: false, error: 'Proposal not found' });
+    }
+    if (proposal.freelancer_id !== freelancer_id) {
+      return res.status(403).json({ success: false, error: 'You do not own this proposal' });
+    }
+    if (proposal.status !== 'withdrawn') {
+      return res.status(409).json({
+        success: false,
+        error: `Cannot unwithdraw a proposal that is ${proposal.status}.`,
+      });
+    }
+    if (!proposal.jobs || proposal.jobs.status !== 'open') {
+      return res.status(409).json({
+        success: false,
+        error: 'This job is no longer open, so this proposal can no longer be restored.',
+      });
+    }
+
+    const updates = { status: 'pending' };
+
+    if (bid_amount !== undefined) {
+      const amount = Number(bid_amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ success: false, error: 'Bid amount must be greater than 0.' });
+      }
+      updates.bid_amount = amount;
+    }
+
+    if (cover_letter !== undefined) {
+      if (!String(cover_letter).trim()) {
+        return res.status(400).json({ success: false, error: 'Cover letter cannot be empty.' });
+      }
+      updates.cover_letter = cover_letter.trim();
+    }
+
+    const { data: restored, error } = await supabaseAdmin
+      .from('proposals')
+      .update(updates)
+      .eq('proposal_id', proposal_id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, data: restored });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }

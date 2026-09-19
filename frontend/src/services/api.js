@@ -100,6 +100,19 @@ export function rejectProposal(proposalId) {
   return request(`/proposals/${proposalId}/reject`, { method: 'PATCH' });
 }
 
+export function withdrawProposal(proposalId) {
+  return request(`/proposals/${proposalId}/withdraw`, { method: 'PATCH' });
+}
+
+// payload is optional — pass { bid_amount, cover_letter } to revise the
+// proposal as part of restoring it, or omit to restore it unchanged.
+export function unwithdrawProposal(proposalId, payload = {}) {
+  return request(`/proposals/${proposalId}/unwithdraw`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 // Contract Execution & Escrow API (Part 3)
 export function getContracts() {
   return request('/contracts');
