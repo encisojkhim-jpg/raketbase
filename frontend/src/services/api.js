@@ -51,6 +51,11 @@ export function updateProfile(payload) {
   });
 }
 
+// Users API — Public profile
+export function getFreelancerProfile(userId) {
+  return request(`/users/${userId}`);
+}
+
 // Jobs API
 export function getJobs(categoryId) {
   const query = categoryId ? `?category_id=${categoryId}` : '';

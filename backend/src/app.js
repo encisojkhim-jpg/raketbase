@@ -9,11 +9,12 @@ const proposalsRoutes = require('./routes/proposals');
 const contractRoutes = require('./routes/contracts');
 const adminRoutes = require('./routes/admin');
 const disputesRoutes = require('./routes/disputes');
+const usersRoutes = require('./routes/users');
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Health check endpoint
 app.get('/api/v1/health', (req, res) => {
@@ -27,6 +28,7 @@ app.use('/api/v1/proposals', proposalsRoutes);
 app.use('/api/v1/contracts', contractRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/disputes', disputesRoutes);
+app.use('/api/v1/users', usersRoutes);
 
 // 404 for anything unmatched (Must stay AFTER all route mounts)
 app.use((req, res) => {

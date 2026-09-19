@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Explore from './pages/Explore';
 import JobDetail from './pages/JobDetail';
 import FreelancerProfile from './pages/FreelancerProfile';
+import FreelancerProfileView from './pages/FreelancerProfileView';
 import ProtectedRoute from './pages/ProtectedRoute';
 import CreateJob from './pages/CreateJob';
 import ClientJobView from './pages/ClientJobView';
@@ -27,6 +28,7 @@ function App() {
         <Route path="/jobs/create" element={<CreateJob />} />
         <Route path="/jobs/:id" element={<JobDetail />} />
         <Route path="/explore/:id" element={<FreelancerProfile />} />
+        <Route path="/freelancer/:id" element={<FreelancerProfileView />} />
         <Route path="/my-jobs" element={<ClientJobView />} />
         <Route path="/my-jobs/:id" element={<ClientJobView />} />
         {/* Part 4: any contract participant can file a dispute */}

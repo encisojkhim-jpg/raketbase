@@ -153,6 +153,12 @@ export default function FreelancerProfile() {
                   <span>Dashboard</span>
                 </Link>
               </li>
+              <li className="sidebar-menu-item">
+                <Link to={`/freelancer/${user.user_id || user.id}`} className="sidebar-menu-link">
+                  <i className="bi bi-person"></i>
+                  <span>My Account</span>
+                </Link>
+              </li>
             </ul>
           </div>
           <div className="sidebar-menu-section">
@@ -184,7 +190,7 @@ export default function FreelancerProfile() {
           </div>
         </div>
         <div className="sidebar-profile">
-          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop" alt="Profile" className="sidebar-profile-img" />
+          <img src={user.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop"} alt="Profile" className="sidebar-profile-img" />
           <div className="sidebar-profile-info">
             <div className="sidebar-profile-name">{user.first_name || 'User'} {user.last_name || ''}</div>
             <div className="sidebar-profile-email">{user.email || 'user@example.com'}</div>
@@ -206,7 +212,7 @@ export default function FreelancerProfile() {
           <div className="navbar-actions">
             <div className="dropdown ms-2">
               <button className="navbar-profile-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop" alt="Profile" className="navbar-profile-img" />
+                <img src={user.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop"} alt="Profile" className="navbar-profile-img" />
                 <span className="navbar-profile-name d-none d-md-inline">{user.first_name || 'User'}</span>
                 <i className="bi bi-chevron-down navbar-profile-caret"></i>
               </button>

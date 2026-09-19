@@ -116,7 +116,7 @@ async function switchRole(req, res) {
 async function getProfile(req, res) {
   const { data: profile, error } = await supabaseAdmin
     .from('users')
-    .select('user_id, email, first_name, last_name, role, active_role, bio, skills, portfolio_url')
+    .select('user_id, email, first_name, last_name, role, active_role, bio, skills, portfolio_url, avatar_url')
     .eq('user_id', req.user.id)
     .single();
 
@@ -124,29 +124,133 @@ async function getProfile(req, res) {
     return res.status(500).json({ status: 500, message: error.message });
   }
 
-  return res.status(200).json({ success: true, data: profile });
+  // Fetch extended metadata from auth user
+  const { data: authData } = await supabaseAdmin.auth.admin.getUserById(req.user.id);
+  const meta = authData?.user?.user_metadata || {};
+
+  const fullProfile = {
+    ...profile,
+    title: meta.title || '',
+    phone: meta.phone || '',
+    location: meta.location || '',
+    hourly_rate: meta.hourly_rate || null,
+    linkedin_url: meta.linkedin_url || '',
+    github_url: meta.github_url || '',
+    website_url: meta.website_url || '',
+    experience: meta.experience || [],
+    education: meta.education || [],
+  };
+
+  return res.status(200).json({ success: true, data: fullProfile });
 }
 
 // PUT /api/v1/auth/profile (Member 1)
 async function updateProfile(req, res) {
-  const { bio, skills, portfolio_url } = req.body;
+  const {
+    bio, skills, portfolio_url,
+    first_name, last_name, title, avatar_url, avatar_base64, avatar_ext, phone, location,
+    hourly_rate, linkedin_url, github_url, website_url,
+    experience, education,
+  } = req.body;
 
-  if (bio && bio.length > 500) {
-    return res.status(400).json({ status: 400, message: 'Bio must be 500 characters or less' });
+  if (bio && bio.length > 2000) {
+    return res.status(400).json({ status: 400, message: 'Bio must be 2000 characters or less' });
   }
 
-  const { data: updated, error } = await supabaseAdmin
-    .from('users')
-    .update({ bio, skills, portfolio_url })
-    .eq('user_id', req.user.id)
-    .select()
-    .single();
+  // Handle Base64 Avatar Upload bypassing RLS using Service Role Key
+  let finalAvatarUrl = avatar_url;
+  if (avatar_base64 && avatar_ext) {
+    try {
+      // Strip out the data:image/png;base64, part if present
+      const base64Data = avatar_base64.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      const filePath = `${req.user.id}/avatar-${Date.now()}.${avatar_ext}`;
 
-  if (error) {
-    return res.status(500).json({ status: 500, message: error.message });
+      // Determine mime type
+      const mimeType = avatar_ext === 'png' ? 'image/png' : (avatar_ext === 'webp' ? 'image/webp' : 'image/jpeg');
+
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from('avatars')
+        .upload(filePath, buffer, {
+          contentType: mimeType,
+          upsert: true
+        });
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw new Error('Failed to upload image to storage');
+      }
+
+      const { data: urlData } = supabaseAdmin.storage.from('avatars').getPublicUrl(filePath);
+      finalAvatarUrl = urlData.publicUrl;
+    } catch (err) {
+      return res.status(500).json({ status: 500, message: err.message });
+    }
   }
 
-  return res.status(200).json({ message: 'Profile updated successfully', data: updated });
+  // Build update payload for public.users
+  const userUpdates = {};
+  if (first_name !== undefined) userUpdates.first_name = first_name;
+  if (last_name !== undefined) userUpdates.last_name = last_name;
+  if (bio !== undefined) userUpdates.bio = bio;
+  if (skills !== undefined) userUpdates.skills = skills;
+  if (portfolio_url !== undefined) userUpdates.portfolio_url = portfolio_url;
+  if (finalAvatarUrl !== undefined) userUpdates.avatar_url = finalAvatarUrl;
+
+  // Build update payload for auth metadata
+  const metaUpdates = {};
+  if (title !== undefined) metaUpdates.title = title;
+  if (phone !== undefined) metaUpdates.phone = phone;
+  if (location !== undefined) metaUpdates.location = location;
+  if (hourly_rate !== undefined) metaUpdates.hourly_rate = hourly_rate;
+  if (linkedin_url !== undefined) metaUpdates.linkedin_url = linkedin_url;
+  if (github_url !== undefined) metaUpdates.github_url = github_url;
+  if (website_url !== undefined) metaUpdates.website_url = website_url;
+  if (experience !== undefined) metaUpdates.experience = experience;
+  if (education !== undefined) metaUpdates.education = education;
+
+  try {
+    let updatedProfile = {};
+
+    // 1. Update public.users if needed
+    if (Object.keys(userUpdates).length > 0) {
+      const { data, error } = await supabaseAdmin
+        .from('users')
+        .update(userUpdates)
+        .eq('user_id', req.user.id)
+        .select()
+        .single();
+      if (error) throw error;
+      updatedProfile = data;
+    }
+
+    // 2. Update auth metadata if needed
+    if (Object.keys(metaUpdates).length > 0) {
+      const { data, error } = await supabaseAdmin.auth.admin.updateUserById(req.user.id, {
+        user_metadata: metaUpdates
+      });
+      if (error) throw error;
+      
+      const meta = data.user.user_metadata || {};
+      updatedProfile = {
+        ...updatedProfile,
+        title: meta.title || '',
+        phone: meta.phone || '',
+        location: meta.location || '',
+        hourly_rate: meta.hourly_rate || null,
+        linkedin_url: meta.linkedin_url || '',
+        github_url: meta.github_url || '',
+        website_url: meta.website_url || '',
+        experience: meta.experience || [],
+        education: meta.education || [],
+      };
+    }
+
+    return res.status(200).json({ message: 'Profile updated successfully', data: updatedProfile });
+  } catch (err) {
+    console.error('updateProfile error:', err);
+    return res.status(500).json({ status: 500, message: err.message || 'Failed to update profile' });
+  }
 }
 
 module.exports = { register, login, switchRole, getProfile, updateProfile };
