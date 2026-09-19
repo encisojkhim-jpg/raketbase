@@ -1,5 +1,56 @@
 const { supabase, supabaseAdmin } = require('../config/supabase');
 
+// Supabase Storage bucket for profile photos (created by database/avatar_setup.sql).
+// Files live at <bucket>/<user_id>/avatar-<timestamp>.<ext>.
+const AVATAR_BUCKET = 'avatars';
+
+// One account is both a client and a freelancer, and each mode has its own photo:
+// the freelancer photo lives in users.avatar_url, the client photo in users.client_avatar_url.
+// filePrefix keeps the two photos' files apart inside the user's storage folder.
+const AVATAR_TARGETS = {
+  freelancer: { column: 'avatar_url', filePrefix: 'avatar' },
+  customer: { column: 'client_avatar_url', filePrefix: 'client-avatar' },
+};
+
+// The photo being changed always belongs to the mode the user is currently in
+// (active_role as stored in the database, set by requireAuth).
+function avatarTargetFor(user) {
+  return user.active_role === 'freelancer' ? AVATAR_TARGETS.freelancer : AVATAR_TARGETS.customer;
+}
+
+// Sniff the real image type from the file's first bytes. The mimetype the browser
+// declares is just a header the client controls, so it can't be trusted on its own.
+function detectImageType(buf) {
+  if (!buf || buf.length < 12) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return { mime: 'image/jpeg', ext: 'jpg' };
+  }
+  if (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return { mime: 'image/png', ext: 'png' };
+  }
+  if (buf.subarray(0, 4).toString('ascii') === 'RIFF' && buf.subarray(8, 12).toString('ascii') === 'WEBP') {
+    return { mime: 'image/webp', ext: 'webp' };
+  }
+  return null;
+}
+
+// Deletes a user's stored photos for ONE mode (files starting with `filePrefix-`),
+// except `keepName` (pass null to delete them all). The other mode's photo is left alone.
+// Best-effort: a failed cleanup must never fail the request the user actually made.
+async function clearAvatarFiles(userId, filePrefix, keepName) {
+  try {
+    const bucket = supabaseAdmin.storage.from(AVATAR_BUCKET);
+    const { data: files, error } = await bucket.list(userId);
+    if (error || !files) return;
+    const stale = files
+      .filter((f) => f.name.startsWith(`${filePrefix}-`) && f.name !== keepName)
+      .map((f) => `${userId}/${f.name}`);
+    if (stale.length > 0) await bucket.remove(stale);
+  } catch (err) {
+    console.error('Avatar cleanup failed for', userId, err);
+  }
+}
+
 // POST /api/v1/auth/register
 async function register(req, res) {
   const { firstName, lastName, email, password, role } = req.body;
@@ -65,7 +116,7 @@ async function login(req, res) {
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('users')
-    .select('user_id, email, first_name, last_name, role, active_role, status, bio, skills, portfolio_url')
+    .select('user_id, email, first_name, last_name, role, active_role, status, bio, skills, portfolio_url, avatar_url, client_avatar_url, client_bio, company_name')
     .eq('user_id', data.user.id)
     .single();
 
@@ -116,7 +167,7 @@ async function switchRole(req, res) {
 async function getProfile(req, res) {
   const { data: profile, error } = await supabaseAdmin
     .from('users')
-    .select('user_id, email, first_name, last_name, role, active_role, bio, skills, portfolio_url')
+    .select('user_id, email, first_name, last_name, role, active_role, bio, skills, portfolio_url, avatar_url, client_avatar_url, client_bio, company_name')
     .eq('user_id', req.user.id)
     .single();
 
@@ -128,18 +179,36 @@ async function getProfile(req, res) {
 }
 
 // PUT /api/v1/auth/profile (Member 1)
+// Only the fields present in the request body are updated, so the freelancer form
+// (bio, skills, portfolio_url) and the client form (client_bio, company_name) can each
+// save without touching the other mode's data.
 async function updateProfile(req, res) {
-  const { bio, skills, portfolio_url } = req.body;
+  const { bio, skills, portfolio_url, client_bio, company_name } = req.body;
 
-  if (bio && bio.length > 500) {
+  if ((bio && bio.length > 500) || (client_bio && client_bio.length > 500)) {
     return res.status(400).json({ status: 400, message: 'Bio must be 500 characters or less' });
   }
+  if (company_name && company_name.length > 100) {
+    return res.status(400).json({ status: 400, message: 'Company name must be 100 characters or less' });
+  }
 
+  const updates = {};
+  if (bio !== undefined) updates.bio = bio;
+  if (skills !== undefined) updates.skills = skills;
+  if (portfolio_url !== undefined) updates.portfolio_url = portfolio_url;
+  if (client_bio !== undefined) updates.client_bio = client_bio;
+  if (company_name !== undefined) updates.company_name = company_name;
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ status: 400, message: 'No profile fields to update' });
+  }
+
+  // Explicit columns (rather than select()) so the response never includes password_hash.
   const { data: updated, error } = await supabaseAdmin
     .from('users')
-    .update({ bio, skills, portfolio_url })
+    .update(updates)
     .eq('user_id', req.user.id)
-    .select()
+    .select('user_id, email, first_name, last_name, role, active_role, bio, skills, portfolio_url, avatar_url, client_avatar_url, client_bio, company_name')
     .single();
 
   if (error) {
@@ -149,4 +218,82 @@ async function updateProfile(req, res) {
   return res.status(200).json({ message: 'Profile updated successfully', data: updated });
 }
 
-module.exports = { register, login, switchRole, getProfile, updateProfile };
+// POST /api/v1/auth/profile/avatar
+// Expects multipart/form-data with one image file in the "avatar" field
+// (parsed by middleware/upload.js, which also enforces the 2 MB limit).
+// Sets the photo for the mode the user is currently in (freelancer or client).
+async function uploadAvatar(req, res) {
+  const target = avatarTargetFor(req.user);
+
+  if (!req.file) {
+    return res.status(400).json({ status: 400, message: 'No image file was uploaded' });
+  }
+
+  const type = detectImageType(req.file.buffer);
+  if (!type) {
+    return res.status(400).json({ status: 400, message: 'Only JPG, PNG, or WebP images are allowed' });
+  }
+
+  // A fresh filename per upload means the new photo is never served from a stale cache.
+  const fileName = `${target.filePrefix}-${Date.now()}.${type.ext}`;
+  const filePath = `${req.user.id}/${fileName}`;
+
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(AVATAR_BUCKET)
+    .upload(filePath, req.file.buffer, {
+      contentType: type.mime,
+      cacheControl: '31536000',
+      upsert: false,
+    });
+
+  if (uploadError) {
+    return res.status(500).json({ status: 500, message: uploadError.message });
+  }
+
+  const { data: urlData } = supabaseAdmin.storage.from(AVATAR_BUCKET).getPublicUrl(filePath);
+  const avatarUrl = urlData.publicUrl;
+
+  const { error: updateError } = await supabaseAdmin
+    .from('users')
+    .update({ [target.column]: avatarUrl })
+    .eq('user_id', req.user.id);
+
+  if (updateError) {
+    // Don't leave an orphaned file behind if the DB write failed.
+    await supabaseAdmin.storage.from(AVATAR_BUCKET).remove([filePath]);
+    return res.status(500).json({ status: 500, message: updateError.message });
+  }
+
+  // Replace, don't accumulate: drop the user's previous photo(s).
+  await clearAvatarFiles(req.user.id, target.filePrefix, fileName);
+
+  // `field` tells the frontend which users column changed, so it updates the right cached photo.
+  return res.status(200).json({
+    message: 'Profile photo updated',
+    data: { avatar_url: avatarUrl, field: target.column },
+  });
+}
+
+// DELETE /api/v1/auth/profile/avatar
+// Removes the photo for the mode the user is currently in.
+async function removeAvatar(req, res) {
+  const target = avatarTargetFor(req.user);
+
+  const { error } = await supabaseAdmin
+    .from('users')
+    .update({ [target.column]: null })
+    .eq('user_id', req.user.id);
+
+  if (error) {
+    return res.status(500).json({ status: 500, message: error.message });
+  }
+
+  await clearAvatarFiles(req.user.id, target.filePrefix, null);
+
+  return res.status(200).json({
+    message: 'Profile photo removed',
+    data: { avatar_url: null, field: target.column },
+  });
+}
+
+module.exports = { register, login, switchRole, getProfile, updateProfile, uploadAvatar, removeAvatar };

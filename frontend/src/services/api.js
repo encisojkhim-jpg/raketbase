@@ -2,8 +2,11 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('token');
+  // For FormData (file uploads) the browser must set Content-Type itself so it can
+  // include the multipart boundary — forcing application/json would break the upload.
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers = {
-    'Content-Type': 'application/json',
+    ...(!isFormData && { 'Content-Type': 'application/json' }),
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
@@ -49,6 +52,17 @@ export function updateProfile(payload) {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
+}
+
+// Profile photo (freelancer profile page)
+export function uploadAvatar(file) {
+  const formData = new FormData();
+  formData.append('avatar', file);
+  return request('/auth/profile/avatar', { method: 'POST', body: formData });
+}
+
+export function removeAvatar() {
+  return request('/auth/profile/avatar', { method: 'DELETE' });
 }
 
 // Jobs API
@@ -167,4 +181,18 @@ export function resolveDispute(disputeId, payload) {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
+}
+
+// Ratings & Reviews API
+// payload: { contract_id, rating, comment?, ...three sub-ratings for the reviewee's role }
+export function createReview(payload) {
+  return request('/reviews', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+// Public profile + ratings for one person in one role ('freelancer' | 'customer').
+export function getUserReviews(userId, role) {
+  return request(`/reviews/users/${userId}?role=${role}`);
 }

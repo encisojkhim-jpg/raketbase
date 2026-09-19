@@ -22,6 +22,8 @@ export default function Navbar({
   const dropdownRef = useRef(null);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState('');
+  // Remembers a photo URL that failed to load so we fall back to the initial letter.
+  const [failedAvatar, setFailedAvatar] = useState(null);
 
   const token = localStorage.getItem('token');
   const user = useCurrentUser();
@@ -32,6 +34,9 @@ export default function Navbar({
     'User';
   const email = user.email || (token ? 'Logged In' : '');
   const initial = (user.first_name?.[0] || user.email?.[0] || 'U').toUpperCase();
+  // Each mode has its own photo: the freelancer one or the client one.
+  const avatarSrc = user.active_role === 'freelancer' ? user.avatar_url : user.client_avatar_url;
+  const showAvatarImage = Boolean(avatarSrc) && failedAvatar !== avatarSrc;
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -67,9 +72,8 @@ export default function Navbar({
     if (switching || currentRole === newRole) return;
 
     if (
-      newRole === 'freelancer' &&
       hasUnsavedChanges() &&
-      !window.confirm('You have unsaved changes on this page. Switching to Freelancer mode will discard them. Switch anyway?')
+      !window.confirm('You have unsaved changes on this page. Switching modes will discard them. Switch anyway?')
     ) {
       return;
     }
@@ -182,18 +186,6 @@ export default function Navbar({
           </Link>
         )}
 
-        {/* Profile link: where a freelancer edits bio, skills, and portfolio URL */}
-        {user.active_role === 'freelancer' && (
-          <Link
-            to="/profile"
-            className={`hidden text-sm font-medium transition-colors cursor-pointer sm:inline ${
-              location.pathname === '/profile' ? 'text-accent font-semibold' : 'text-text-secondary hover:text-text'
-            }`}
-          >
-            Profile
-          </Link>
-        )}
-
         {/* Admin panel link (admin accounts only) */}
         {user.role === 'admin' && (
           <Link
@@ -277,9 +269,18 @@ export default function Navbar({
           <button
             onClick={() => setDropdownOpen((o) => !o)}
             aria-label="User profile menu"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent font-display text-sm font-semibold text-[#1A1305] cursor-pointer hover:ring-2 hover:ring-accent/50 transition-all focus:outline-none"
+            className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent font-display text-sm font-semibold text-[#1A1305] cursor-pointer hover:ring-2 hover:ring-accent/50 transition-all focus:outline-none"
           >
-            {initial}
+            {showAvatarImage ? (
+              <img
+                src={avatarSrc}
+                alt=""
+                className="h-full w-full object-cover"
+                onError={() => setFailedAvatar(avatarSrc)}
+              />
+            ) : (
+              initial
+            )}
           </button>
 
           {dropdownOpen && (
@@ -297,8 +298,19 @@ export default function Navbar({
                 </span>
               </div>
 
-              {/* Log Out Action */}
+              {/* Profile link (both modes) directly above Log Out */}
               <div className="border-t border-border pt-1">
+                <Link
+                  to="/profile"
+                  onClick={() => setDropdownOpen(false)}
+                  className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer hover:bg-surface ${
+                    location.pathname === '/profile' ? 'text-accent' : 'text-text'
+                  }`}
+                >
+                  <span>Profile</span>
+                </Link>
+
+                {/* Log Out Action */}
                 <button
                   onClick={handleLogout}
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-error hover:bg-error/10 transition-colors cursor-pointer"

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { ClockIcon } from '../components/Icons';
+import ClientRatingCard from '../components/ClientRatingCard';
 import ProposalBlockedNotice from '../components/ProposalBlockedNotice';
 import { getProposalBlockReason } from '../utils/proposalEligibility';
 import { useCurrentUser } from '../utils/currentUser';
@@ -181,6 +182,10 @@ export default function JobDetail() {
               <p className="text-text text-sm md:text-base leading-relaxed whitespace-pre-line">
                 {job.description || 'No detailed description provided.'}
               </p>
+            </div>
+
+            <div className="border-t border-border pt-6 mt-6">
+              <ClientRatingCard job={job} />
             </div>
 
             <div className="border-t border-border pt-6 mt-6 flex flex-wrap gap-6 text-xs text-text-secondary">

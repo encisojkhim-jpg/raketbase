@@ -20,6 +20,7 @@ import {
   completeContract,
 } from '../services/api';
 import { useCurrentUser } from '../utils/currentUser';
+import RateContractModal from '../components/RateContractModal';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -31,6 +32,8 @@ export default function Dashboard() {
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
   const [actioningId, setActioningId] = useState(null);
+  // Contract currently being rated in the rating modal (null = closed).
+  const [ratingContract, setRatingContract] = useState(null);
 
   const user = useCurrentUser();
   // 'customer' active_role is Client mode; anything else is Freelancer mode.
@@ -112,11 +115,20 @@ export default function Dashboard() {
       await completeContract(contract.contract_id);
       setActionSuccess(`Escrow payment of ₱${amount} released successfully! Contract marked as completed.`);
       await loadData();
+      // Work is done: invite the client to rate the freelancer right away (dismissable).
+      setRatingContract(contract);
     } catch (err) {
       setActionError(err.message || 'Failed to release escrow funds. Please try again.');
     } finally {
       setActioningId(null);
     }
+  }
+
+  function handleRatingSubmitted() {
+    setRatingContract(null);
+    setActionError('');
+    setActionSuccess('Thanks! Your rating has been submitted and is now public on their profile.');
+    loadData();
   }
 
   if (loading) {
@@ -322,7 +334,16 @@ export default function Dashboard() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="text-text font-medium">{partnerName}</div>
+                            {partner?.user_id ? (
+                              <Link
+                                to={`/users/${partner.user_id}?role=${isClient ? 'freelancer' : 'customer'}`}
+                                className="text-text font-medium hover:text-accent hover:underline cursor-pointer"
+                              >
+                                {partnerName}
+                              </Link>
+                            ) : (
+                              <div className="text-text font-medium">{partnerName}</div>
+                            )}
                             <div className="text-xs text-text-secondary">{partnerRole}</div>
                           </td>
                           <td className="px-6 py-4">
@@ -391,6 +412,23 @@ export default function Dashboard() {
                                 Funds Released ✓
                               </span>
                             )}
+
+                            {/* Rating: one per side. Button until you've rated, then your score. */}
+                            {c.status === 'completed' && (() => {
+                              const myReview = (c.reviews || []).find((r) => r.reviewer_id === user.user_id);
+                              return myReview ? (
+                                <span className="ml-2 inline-block text-xs font-medium text-accent">
+                                  You rated {myReview.rating}★
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => setRatingContract(c)}
+                                  className="ml-2 inline-block px-3 py-1.5 border border-accent/40 text-accent rounded-md text-xs font-semibold hover:bg-accent/10 transition-colors cursor-pointer"
+                                >
+                                  {isClient ? 'Rate Freelancer' : 'Rate Client'}
+                                </button>
+                              );
+                            })()}
 
                             {/* Either participant can escalate an in-flight contract */}
                             {(c.status === 'active' || c.status === 'submitted') && (
@@ -513,6 +551,15 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {ratingContract && (
+        <RateContractModal
+          contract={ratingContract}
+          isClient={ratingContract.client_id === user.user_id}
+          onClose={() => setRatingContract(null)}
+          onSubmitted={handleRatingSubmitted}
+        />
+      )}
     </div>
   );
 }

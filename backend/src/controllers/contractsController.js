@@ -23,6 +23,12 @@ exports.getContracts = async (req, res) => {
           status,
           budget_type
         ),
+        reviews (
+          review_id,
+          reviewer_id,
+          reviewee_id,
+          rating
+        ),
         client:users!contracts_client_id_fkey (
           user_id,
           first_name,
@@ -75,6 +81,12 @@ exports.getContractById = async (req, res) => {
           budget,
           status,
           budget_type
+        ),
+        reviews (
+          review_id,
+          reviewer_id,
+          reviewee_id,
+          rating
         ),
         client:users!contracts_client_id_fkey (
           user_id,

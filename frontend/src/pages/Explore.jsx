@@ -4,8 +4,26 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { CloseIcon, ClockIcon } from '../components/Icons';
 import { useCurrentUser } from '../utils/currentUser';
+import { getMyProposals } from '../services/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+
+// Badge shown on a job card for a job the freelancer has already proposed on
+// (withdrawn proposals are excluded — see proposalStatusByJobId below).
+const PROPOSAL_STATUS_BADGE = {
+  pending: {
+    label: '✓ Applied',
+    className: 'rounded-full border border-accent/40 bg-accent/15 px-2.5 py-1 text-[12px] font-semibold text-accent',
+  },
+  accepted: {
+    label: 'Accepted',
+    className: 'rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[12px] font-semibold text-emerald-400',
+  },
+  rejected: {
+    label: 'Rejected',
+    className: 'rounded-full border border-error/40 bg-error/10 px-2.5 py-1 text-[12px] font-semibold text-error',
+  },
+};
 
 export default function Explore() {
   const navigate = useNavigate();
@@ -22,6 +40,11 @@ export default function Explore() {
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [budget, setBudget] = useState(null);
   const [hideTaken, setHideTaken] = useState(false);
+
+  // The freelancer's own proposals, used to badge job cards as Applied /
+  // Accepted / Rejected. Fetched once — mode-awareness re-derives from this
+  // plus the live currentUser, so switching modes needs no refetch.
+  const [myProposals, setMyProposals] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +81,34 @@ export default function Explore() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadProposals() {
+      try {
+        const res = await getMyProposals();
+        if (!cancelled) setMyProposals(res.data || []);
+      } catch {
+        // Silently ignore — job cards just won't show an applied badge.
+      }
+    }
+    loadProposals();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // job_id -> proposal status, excluding withdrawn proposals (a withdrawn
+  // proposal shouldn't show as "Applied" — see FreelancerProfile.jsx, which
+  // gives withdrawn its own separate notice instead).
+  const proposalStatusByJobId = useMemo(() => {
+    const map = {};
+    for (const p of myProposals) {
+      if (p.status === 'withdrawn') continue;
+      map[String(p.job_id)] = p.status;
+    }
+    return map;
+  }, [myProposals]);
 
   const budgetBounds = useMemo(() => {
     if (!jobs.length) return { min: 0, max: 0 };
@@ -186,7 +237,14 @@ export default function Explore() {
           {!loading && !loadError && visibleJobs.length > 0 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {visibleJobs.map((job) => (
-                <JobCard key={job.job_id} job={job} onOpen={() => navigate(`/explore/${job.job_id}`)} />
+                <JobCard
+                  key={job.job_id}
+                  job={job}
+                  onOpen={() => navigate(`/explore/${job.job_id}`)}
+                  isClientMode={isClientMode}
+                  currentUserId={currentUser.user_id}
+                  proposalStatus={proposalStatusByJobId[String(job.job_id)]}
+                />
               ))}
             </div>
           )}
@@ -287,10 +345,19 @@ function RangeField({ label, unit, value, onChange, bounds, onReset }) {
   );
 }
 
-function JobCard({ job, onOpen }) {
+function JobCard({ job, onOpen, isClientMode, currentUserId, proposalStatus }) {
   const categoryName = job.categories?.category_name || 'Uncategorized';
   const posted = formatDate(job.created_at);
   const isTaken = job.status && job.status !== 'open';
+  const isOwnJob = isClientMode && Boolean(currentUserId) && job.client_id === currentUserId;
+  const appliedBadge = !isClientMode && proposalStatus ? PROPOSAL_STATUS_BADGE[proposalStatus] : null;
+
+  let buttonLabel = 'View & apply';
+  if (isOwnJob || isTaken) {
+    buttonLabel = 'View details';
+  } else if (appliedBadge) {
+    buttonLabel = 'Already Applied';
+  }
 
   return (
     <div
@@ -304,12 +371,18 @@ function JobCard({ job, onOpen }) {
         <span className="rounded-full border border-border px-2.5 py-1 text-[12px] text-text-secondary">
           {categoryName}
         </span>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {isOwnJob && (
+            <span className="rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[12px] font-semibold text-accent">
+              Your posting
+            </span>
+          )}
           {isTaken && (
             <span className="rounded-full border border-error/40 bg-error/10 px-2.5 py-1 text-[12px] font-semibold text-error">
               Job taken
             </span>
           )}
+          {appliedBadge && <span className={appliedBadge.className}>{appliedBadge.label}</span>}
           {posted && (
             <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
               <ClockIcon className="h-3.5 w-3.5" />
@@ -344,7 +417,7 @@ function JobCard({ job, onOpen }) {
         onClick={onOpen}
         className="mt-auto rounded-md border border-border py-2.5 text-[13px] font-medium transition-colors hover:border-accent/40 hover:text-accent cursor-pointer"
       >
-        {isTaken ? 'View details' : 'View & apply'}
+        {buttonLabel}
       </button>
     </div>
   );

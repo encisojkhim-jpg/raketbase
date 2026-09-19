@@ -1,4 +1,5 @@
 const { supabaseAdmin } = require('../config/supabase');
+const { getRatingSummaries, emptySummary } = require('../utils/ratings');
 
 // POST /api/v1/proposals - Submit a proposal for a job
 exports.createProposal = async (req, res) => {
@@ -136,7 +137,14 @@ exports.getProposalsForJob = async (req, res) => {
 
     if (error) throw error;
 
-    return res.status(200).json({ success: true, data: { job, proposals } });
+    // Attach each bidder's average freelancer rating so the client can compare them.
+    const ratings = await getRatingSummaries((proposals || []).map((p) => p.freelancer_id), 'freelancer');
+    const proposalsWithRatings = (proposals || []).map((p) => ({
+      ...p,
+      freelancer_rating: ratings[p.freelancer_id] || emptySummary('freelancer'),
+    }));
+
+    return res.status(200).json({ success: true, data: { job, proposals: proposalsWithRatings } });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }

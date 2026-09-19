@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { ClockIcon } from '../components/Icons';
+import ClientRatingCard from '../components/ClientRatingCard';
 import ProposalBlockedNotice from '../components/ProposalBlockedNotice';
 import { getProposalBlockReason } from '../utils/proposalEligibility';
 import { isProfileComplete } from '../utils/profileCompleteness';
@@ -226,15 +227,25 @@ export default function FreelancerProfile() {
                 {job.title || 'Untitled job'}
               </h1>
 
-              <p className="mt-2 flex items-center gap-1.5 text-[13px] text-text-secondary">
+              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-[13px] text-text-secondary">
                 <ClockIcon className="h-3.5 w-3.5" />
-                Posted {formatDate(job.created_at)}
-                {job.users && ` by ${job.users.first_name} ${job.users.last_name}`}
+                <span>Posted {formatDate(job.created_at)}</span>
+                {job.users && (
+                  <>
+                    <span>by</span>
+                    <PosterAvatar user={job.users} />
+                    <span>
+                      {job.users.first_name} {job.users.last_name}
+                    </span>
+                  </>
+                )}
               </p>
 
               <p className="mt-6 whitespace-pre-line text-[15px] leading-relaxed text-text-secondary">
                 {job.description || 'No description provided.'}
               </p>
+
+              <ClientRatingCard job={job} className="mt-8" />
             </div>
 
             {/* Right Column: Budget and Proposal Form */}
@@ -356,6 +367,33 @@ export default function FreelancerProfile() {
         )}
       </div>
     </div>
+  );
+}
+
+// Small round photo of the client who posted the job. Falls back to their initial
+// when they have no photo (or it fails to load).
+function PosterAvatar({ user }) {
+  const [broken, setBroken] = useState(false);
+  const src = user.client_avatar_url;
+  const initial = (user.first_name?.[0] || user.email?.[0] || 'C').toUpperCase();
+
+  if (src && !broken) {
+    return (
+      <img
+        src={src}
+        alt=""
+        onError={() => setBroken(true)}
+        className="h-6 w-6 shrink-0 rounded-full border border-border object-cover"
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent font-display text-[11px] font-semibold text-[#1A1305]"
+    >
+      {initial}
+    </span>
   );
 }
 

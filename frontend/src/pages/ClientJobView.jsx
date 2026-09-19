@@ -3,9 +3,10 @@
 // 1. /my-jobs        -> list of jobs the logged-in client has posted, with proposal counts
 // 2. /my-jobs/:id     -> a single job's proposals, with Accept / Reject actions
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { ClockIcon } from '../components/Icons';
+import { RatingBadge } from '../components/StarRating';
 import { getMyJobs, getJobProposals, acceptProposal, rejectProposal } from '../services/api';
 
 const STATUS_STYLES = {
@@ -259,9 +260,15 @@ function ProposalCard({ proposal, jobIsOpen, busy, onAccept, onReject }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className="font-display text-base font-medium">{name}</p>
+            <Link
+              to={`/users/${proposal.freelancer_id}?role=freelancer`}
+              className="font-display text-base font-medium hover:text-accent hover:underline cursor-pointer"
+            >
+              {name}
+            </Link>
             <StatusPill status={proposal.status} />
           </div>
+          <RatingBadge rating={proposal.freelancer_rating} className="mt-1" />
           <p className="mt-1 flex items-center gap-1.5 text-[12px] text-text-secondary">
             <ClockIcon className="h-3.5 w-3.5" />
             Submitted {formatDate(proposal.submitted_at)}

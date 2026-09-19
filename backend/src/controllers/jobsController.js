@@ -1,4 +1,5 @@
 const { supabaseAdmin } = require('../config/supabase');
+const { getRatingSummaries, emptySummary } = require('../utils/ratings');
 
 // GET /api/v1/jobs - Fetch all jobs (with optional category filtering).
 // Open jobs come first (newest first); assigned/completed jobs follow so the
@@ -53,13 +54,17 @@ exports.getJobById = async (req, res) => {
 
     const { data: job, error } = await supabaseAdmin
       .from('jobs')
-      .select('*, categories(category_name), users!jobs_client_id_fkey(first_name, last_name, email)')
+      .select('*, categories(category_name), users!jobs_client_id_fkey(first_name, last_name, email, client_avatar_url)')
       .eq('job_id', id)
       .single();
 
     if (error || !job) {
       return res.status(404).json({ success: false, error: 'Job not found' });
     }
+
+    // How freelancers have rated this client, so applicants can see it before bidding.
+    const ratings = await getRatingSummaries([job.client_id], 'customer');
+    job.client_rating = ratings[job.client_id] || emptySummary('customer');
 
     return res.status(200).json({ success: true, data: job });
   } catch (error) {
