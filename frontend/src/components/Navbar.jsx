@@ -113,29 +113,30 @@ export default function Navbar({
 
   return (
     <div className="sticky top-0 z-50 w-full">
-      <header className="flex items-center justify-between border-b border-border bg-bg/95 px-4 py-3 backdrop-blur-md md:px-8">
+      <header className="flex items-center justify-between border-b border-border bg-bg/95 px-3 sm:px-4 py-3 backdrop-blur-md md:px-8">
       {/* Left side: Brand Logo and Filters button only */}
-      <div className="flex items-center gap-3 md:gap-6">
+      <div className="flex items-center gap-2 sm:gap-3 md:gap-6 shrink-0">
         {showBack && (
           <button
             onClick={handleBack}
-            className="flex items-center gap-2 text-[13px] font-medium text-text-secondary hover:text-text cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 sm:gap-2 text-[13px] font-medium text-text-secondary hover:text-text cursor-pointer transition-colors"
           >
             <ArrowLeftIcon className="h-4 w-4" />
-            <span>Back</span>
+            <span className="hidden sm:inline">Back</span>
           </button>
         )}
 
         <Link
           to={token ? '/dashboard' : '/login'}
-          className="flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity shrink-0"
         >
           <img
             src="/racketbaseSVG.svg"
-            alt="RaketBase Logo"
-            className="h-8 w-8 object-contain logo-shake"
+            alt=""
+            aria-hidden="true"
+            className="h-7 w-7 sm:h-8 sm:w-8 object-contain logo-shake shrink-0"
           />
-          <div className="flex items-center tracking-tight text-xl md:text-2xl" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+          <div className="flex items-center tracking-tight text-lg sm:text-xl md:text-2xl select-none" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             <span className="font-extrabold text-text">RAKET</span>
             <span className="font-normal text-accent">BASE</span>
           </div>
@@ -144,18 +145,18 @@ export default function Navbar({
         {showFilters && (
           <button
             onClick={() => setFiltersOpen((o) => !o)}
-            className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text hover:border-accent/40 cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 sm:gap-2 rounded-md border border-border bg-surface px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-text hover:border-accent/40 cursor-pointer transition-colors"
           >
             <span>Filters</span>
             <ChevronDownIcon
-              className={`h-4 w-4 transition-transform ${filtersOpen ? 'rotate-180' : ''}`}
+              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 transition-transform ${filtersOpen ? 'rotate-180' : ''}`}
             />
           </button>
         )}
       </div>
 
       {/* Right side: Search bar, Navigation links, Currency, Mode toggle, Avatar, and Mobile hamburger */}
-      <div className="flex items-center gap-3 md:gap-5">
+      <div className="flex items-center gap-2 sm:gap-3 md:gap-5">
         {showSearch && (
           <div className="relative hidden w-64 md:block lg:w-80">
             <SearchIcon className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />

@@ -217,28 +217,28 @@ export default function Dashboard() {
     <div className="min-h-screen bg-bg text-text">
       <Navbar />
 
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <div className="max-w-5xl mx-auto">
           {/* Top header with navigation actions */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 border-b border-border pb-6">
             <div>
-              <h1 className="font-display text-3xl font-semibold tracking-tight">Dashboard</h1>
+              <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">Dashboard</h1>
               <p className="text-text-secondary text-sm mt-1">
                 Manage your active contracts, escrow funds, and job applications.
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
               {user.active_role === 'customer' && (
                 <>
                   <Link
                     to="/my-jobs"
-                    className="px-4 py-2 border border-border text-text rounded-md text-sm font-medium hover:border-accent/40 transition-colors cursor-pointer"
+                    className="px-3.5 sm:px-4 py-2 border border-border text-text rounded-md text-sm font-medium hover:border-accent/40 transition-colors cursor-pointer"
                   >
                     My Postings
                   </Link>
                   <Link
                     to="/jobs/create"
-                    className="px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
+                    className="px-3.5 sm:px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
                   >
                     + Post a Job
                   </Link>
@@ -246,7 +246,7 @@ export default function Dashboard() {
               )}
               <Link
                 to="/explore"
-                className="px-4 py-2 border border-border text-text rounded-md text-sm font-medium hover:border-accent/40 transition-colors cursor-pointer"
+                className="px-3.5 sm:px-4 py-2 border border-border text-text rounded-md text-sm font-medium hover:border-accent/40 transition-colors cursor-pointer"
               >
                 Explore Jobs
               </Link>
@@ -328,13 +328,13 @@ export default function Dashboard() {
 
           {/* Section 1: Active Contracts & Escrow (Part 3 Core), scoped to the current mode */}
           <div className="bg-panel border border-border rounded-lg mb-10 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 sm:px-6 py-4 border-b border-border bg-surface/50">
               <div className="flex items-center gap-2">
-                <h2 className="font-display text-lg font-medium">
+                <h2 className="font-display text-base sm:text-lg font-medium">
                   {isClientMode ? 'Contracts & Escrow (as Client)' : 'Contracts & Escrow (as Freelancer)'}
                 </h2>
               </div>
-              <span className="text-xs text-text-secondary hidden sm:inline">
+              <span className="text-xs text-text-secondary">
                 Funds held safely in escrow until client approval
               </span>
             </div>
@@ -366,14 +366,14 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[620px] text-sm">
                   <thead>
                     <tr className="text-text-secondary text-[12px] uppercase tracking-wider border-b border-border bg-surface/30">
-                      <th className="text-left px-6 py-3 font-medium">Job Title</th>
-                      <th className="text-left px-6 py-3 font-medium">Counterparty</th>
-                      <th className="text-left px-6 py-3 font-medium">Escrow Amount</th>
-                      <th className="text-left px-6 py-3 font-medium">Status</th>
-                      <th className="text-right px-6 py-3 font-medium">Actions</th>
+                      <th className="text-left px-4 sm:px-6 py-3 font-medium">Job Title</th>
+                      <th className="text-left px-4 sm:px-6 py-3 font-medium">Counterparty</th>
+                      <th className="text-left px-4 sm:px-6 py-3 font-medium">Escrow Amount</th>
+                      <th className="text-left px-4 sm:px-6 py-3 font-medium">Status</th>
+                      <th className="text-right px-4 sm:px-6 py-3 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -589,13 +589,13 @@ export default function Dashboard() {
           ) : (
             /* Freelancer mode: the bids you've submitted */
             <div className="bg-panel border border-border rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/50">
-                <h2 className="font-display text-lg font-medium">My Active Bids</h2>
-                <div className="flex items-center gap-4">
-                  <Link to="/my-proposals" className="text-sm text-accent hover:underline cursor-pointer">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 sm:px-6 py-4 border-b border-border bg-surface/50">
+                <h2 className="font-display text-base sm:text-lg font-medium">My Active Bids</h2>
+                <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm">
+                  <Link to="/my-proposals" className="text-accent hover:underline cursor-pointer">
                     Manage proposals
                   </Link>
-                  <Link to="/explore" className="text-sm text-accent hover:underline cursor-pointer">
+                  <Link to="/explore" className="text-accent hover:underline cursor-pointer">
                     Find more jobs
                   </Link>
                 </div>
@@ -625,12 +625,12 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[460px] text-sm">
                     <thead>
                       <tr className="text-text-secondary text-[12px] uppercase tracking-wider border-b border-border bg-surface/30">
-                        <th className="text-left px-6 py-3 font-medium">Job</th>
-                        <th className="text-left px-6 py-3 font-medium">Bid Amount</th>
-                        <th className="text-left px-6 py-3 font-medium">Status</th>
+                        <th className="text-left px-4 sm:px-6 py-3 font-medium">Job</th>
+                        <th className="text-left px-4 sm:px-6 py-3 font-medium">Bid Amount</th>
+                        <th className="text-left px-4 sm:px-6 py-3 font-medium">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">

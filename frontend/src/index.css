@@ -1,4 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&display=swap');
 @import "tailwindcss";
+
+img.rocket-logo {
+  height: auto;
+  transition: transform 0.2s ease;
+}
+
+.logo-shake {
+  transition: transform 0.2s ease;
+}
+
+.logo-shake:hover,
+a:hover .logo-shake {
+  animation: wiggle-rocket 0.4s ease-in-out infinite;
+}
+
+@keyframes wiggle-rocket {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  25% { transform: translate(-1px, 1px) rotate(-1.5deg); }
+  50% { transform: translate(1px, -1px) rotate(1.5deg); }
+  75% { transform: translate(-1px, -1px) rotate(-1deg); }
+  100% { transform: translate(0px, 0px) rotate(0deg); }
+}
 
 @theme {
   --color-bg: #10131A;
