@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import RatingsPanel from '../components/RatingsPanel';
+import AveragePriceCard from '../components/AveragePriceCard';
 import { RatingBadge } from '../components/StarRating';
 import { getUserReviews } from '../services/api';
 
@@ -62,6 +63,8 @@ export default function PublicProfile() {
         {!loading && !error && user && (
           <>
             <div className="flex flex-col gap-6 rounded-lg border border-border bg-panel p-6 sm:flex-row sm:items-start">
+              {/* Photo with the average price/budget card just below it */}
+              <div className="flex shrink-0 flex-col items-center gap-4 sm:w-48">
               {user.avatar_url && !avatarBroken ? (
                 <img
                   src={user.avatar_url}
@@ -77,6 +80,8 @@ export default function PublicProfile() {
                   {initial}
                 </div>
               )}
+              {data.price && <AveragePriceCard role={role} price={data.price} className="w-full" />}
+              </div>
 
               <div className="min-w-0 flex-1">
                 <p className="text-[12px] text-text-secondary">{isFreelancer ? 'Freelancer' : 'Client'}</p>

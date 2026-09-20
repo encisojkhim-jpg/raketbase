@@ -1,4 +1,5 @@
 Changes
+
 [General changes]
 - Added a switch button on the navbar that allows users to switch between freelancer and client, switch should apply for all pages
 - Fixed a bug where the release funds button was not showing up for the client side of the website
@@ -17,6 +18,7 @@ Changes
 - Added a withdrawn status to proposals table
 
 Changes 2
+
 [General changes]
 - There are now badges in the job cards that says either accepted, rejected, or applied
 - Profile pictures now exist
@@ -25,3 +27,18 @@ Changes 2
 [Database changes]
 - Added fields to support profile pictures
 - Added stuff to support the rating system
+
+
+Changes 3
+[General Changes]
+- Added a top users page, now top freelancers and clients can be displayed
+
+[User Profile changes]
+- There is now an average price for both freelancers and clients, this is used in the top users page
+
+Roadmap
+- Make it so that people who choose the freelancer option also need to put in their bank details and phone number
+- Make it so that people who choose the client option choose whether or not they are a small business or a major contractor and need to put in their business name. 
+- Have the toast that appears when changing from client to freelancer slide in and have a mini loading bar to show how much time is left before it disappears
+- Develop a messaging system
+- Have clients be able to delete their posting as long as they have not accepted a freelancer for it yet

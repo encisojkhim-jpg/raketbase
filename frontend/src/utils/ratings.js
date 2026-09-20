@@ -25,3 +25,10 @@ export function formatAverage(value) {
 export function reviewCountLabel(count) {
   return `${count} review${count === 1 ? '' : 's'}`;
 }
+
+// "₱12,500", or "—" when there's no number. Render this in the body font (font-sans):
+// the display font (Space Grotesk) has no glyph for the peso sign.
+export function formatPeso(value) {
+  if (value == null || !Number.isFinite(Number(value))) return '—';
+  return `₱${Math.round(Number(value)).toLocaleString()}`;
+}

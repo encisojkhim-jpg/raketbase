@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require('../config/supabase');
 const { CRITERIA, ROLES, summarize } = require('../utils/ratings');
+const { getAverageAmountForUser } = require('../utils/userStats');
 
 const COMMENT_MAX = 1000;
 const REVIEW_LIST_LIMIT = 50;
@@ -158,6 +159,10 @@ exports.getUserReviews = async (req, res) => {
     const all = rows || [];
     const summary = summarize(all, role);
 
+    // Average agreed amount over this person's completed contracts: their average price as a
+    // freelancer, or their average budget as a client.
+    const price = await getAverageAmountForUser(targetId, role);
+
     // The reviewer sits on the opposite side of the contract: if we're looking at someone as a
     // freelancer, their reviewers were clients (and used their client photo), and vice versa.
     const reviews = all.slice(0, REVIEW_LIST_LIMIT).map((r) => {
@@ -196,7 +201,7 @@ exports.getUserReviews = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: { role, user: publicUser, summary, reviews, has_more: all.length > reviews.length },
+      data: { role, user: publicUser, summary, price, reviews, has_more: all.length > reviews.length },
     });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });

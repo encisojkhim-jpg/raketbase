@@ -10,6 +10,7 @@ import Navbar from '../components/Navbar';
 import { CloseIcon } from '../components/Icons';
 import { getProfile, updateProfile, uploadAvatar, removeAvatar, getUserReviews } from '../services/api';
 import RatingsPanel from '../components/RatingsPanel';
+import AveragePriceCard from '../components/AveragePriceCard';
 import { RatingBadge } from '../components/StarRating';
 import { useCurrentUser, setCurrentUser } from '../utils/currentUser';
 import { showToast } from '../utils/toast';
@@ -253,8 +254,9 @@ function ProfileEditor({ mode }) {
 
         {!loading && !loadError && (
           <div className="mt-8 grid gap-6 md:grid-cols-[260px_1fr] md:items-start">
-            {/* Left column: profile photo with the person's name underneath */}
-            <aside className="rounded-lg border border-border bg-panel p-6 text-center md:sticky md:top-24">
+            {/* Left column: profile photo card, with the average price/budget card just below it */}
+            <div className="space-y-4 md:sticky md:top-24">
+            <aside className="rounded-lg border border-border bg-panel p-6 text-center">
               <div className="relative mx-auto h-40 w-40">
                 {showAvatarImage ? (
                   <img
@@ -318,6 +320,9 @@ function ProfileEditor({ mode }) {
                 </p>
               )}
             </aside>
+
+            {ratings && <AveragePriceCard role={mode} price={ratings.price} />}
+            </div>
 
             {/* Right column: the profile form for the current mode */}
             <div className="space-y-10">

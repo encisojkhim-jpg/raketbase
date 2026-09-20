@@ -6,6 +6,7 @@ import Explore from './pages/Explore';
 import JobDetail from './pages/JobDetail';
 import FreelancerProfile from './pages/FreelancerProfile';
 import PublicProfile from './pages/PublicProfile';
+import TopUsers from './pages/TopUsers';
 import ProtectedRoute from './pages/ProtectedRoute';
 import ClientRoute from './pages/ClientRoute';
 import FreelancerRoute from './pages/FreelancerRoute';
@@ -39,6 +40,8 @@ function App() {
         <Route path="/explore" element={<Explore />} />
         <Route path="/jobs/:id" element={<JobDetail />} />
         <Route path="/explore/:id" element={<FreelancerProfile />} />
+        {/* Leaderboard of best-rated freelancers and clients: /top-users?tab=freelancers|clients */}
+        <Route path="/top-users" element={<TopUsers />} />
         {/* Public profile + reviews of any user: /users/:id?role=freelancer|customer */}
         <Route path="/users/:id" element={<PublicProfile />} />
         {/* Profile page for both modes: the photo and fields shown depend on the active mode */}

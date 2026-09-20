@@ -162,6 +162,16 @@ export default function Navbar({
           Explore Jobs
         </Link>
 
+        {/* Top Users link: leaderboard of best-rated freelancers and clients */}
+        <Link
+          to="/top-users"
+          className={`hidden text-sm font-medium transition-colors cursor-pointer sm:inline ${
+            location.pathname === '/top-users' ? 'text-accent font-semibold' : 'text-text-secondary hover:text-text'
+          }`}
+        >
+          Top Users
+        </Link>
+
         {/* My Postings link: where a client reviews and acts on incoming proposals */}
         {user.active_role === 'customer' && (
           <Link

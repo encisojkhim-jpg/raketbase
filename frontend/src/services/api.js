@@ -196,3 +196,15 @@ export function createReview(payload) {
 export function getUserReviews(userId, role) {
   return request(`/reviews/users/${userId}?role=${role}`);
 }
+
+// Top Users list. params: { role: 'freelancer' | 'customer', minRating?, minPrice?, maxPrice?, limit?, offset? }
+// Undefined values are left out of the query string.
+export function getTopUsers({ role, minRating, minPrice, maxPrice, limit, offset }) {
+  const qs = new URLSearchParams({ role });
+  if (minRating) qs.set('min_rating', minRating);
+  if (minPrice !== undefined) qs.set('min_price', minPrice);
+  if (maxPrice !== undefined) qs.set('max_price', maxPrice);
+  if (limit) qs.set('limit', limit);
+  if (offset) qs.set('offset', offset);
+  return request(`/top-users?${qs.toString()}`);
+}
