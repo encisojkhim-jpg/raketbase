@@ -45,6 +45,25 @@ Changes 3
 - Schema.sql now has content
 - Edited the db to support the messaging feature including RLS and Buckets
 
+
+Changes 4
+
+[External API & Financials]
+- Integrated a live Third-Party Forex Currency API (open.er-api.com with server caching and graceful fallback)
+- Added a currency selector in the navigation bar supporting PHP (₱), USD ($), EUR (€), JPY (¥), GBP (£), and SGD (S$)
+- Explore job card budgets and Dashboard escrow metrics now recalculate in real time based on live exchange rates
+
+[Search & Filtering Improvements]
+- Upgraded the Explore search filter to search across both job titles and job categories
+- Made category badges on job cards clickable so users can instantly filter jobs by category
+
+[Mobile Responsiveness & UI Polish]
+- Added a sticky header with a mobile hamburger navigation drawer
+- Added a mobile slide-over filter modal for Explore
+- Fixed mobile table overflow with smooth horizontal scrolling for Dashboard contracts and active bids
+- Restored the official rocket logo SVG with responsive scaling and hover wiggle animation
+
+
 Roadmap
 - Make it so that people who choose the freelancer option also need to put in their bank details and phone number
 - Make it so that people who choose the client option choose whether or not they are a small business or a major contractor and need to put in their business name. 
