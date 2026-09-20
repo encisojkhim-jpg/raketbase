@@ -18,8 +18,12 @@ import {
   getContracts,
   submitContractWork,
   completeContract,
+  acceptProposal,
+  rejectProposal,
+  getJobProposals,
 } from '../services/api';
 import { useCurrentUser } from '../utils/currentUser';
+import { useCurrency } from '../context/CurrencyContext';
 import RateContractModal from '../components/RateContractModal';
 import MilestonesModal from '../components/MilestonesModal';
 
@@ -37,8 +41,12 @@ export default function Dashboard() {
   const [ratingContract, setRatingContract] = useState(null);
   // Contract whose milestone breakdown is open in the modal (null = closed).
   const [milestonesContract, setMilestonesContract] = useState(null);
+  // Client dashboard: inline pending proposals loaded across all job postings.
+  const [pendingBids, setPendingBids] = useState([]);
+  const [bidActionId, setBidActionId] = useState(null);
 
   const user = useCurrentUser();
+  const { currency, convertAmount, formatPhp } = useCurrency();
   // 'customer' active_role is Client mode; anything else is Freelancer mode.
   const isClientMode = (user.active_role || 'customer') === 'customer';
 
@@ -84,9 +92,55 @@ export default function Dashboard() {
     }
   }, [navigate, isClientMode]);
 
+  // Load pending proposals inline for the client dashboard
+  const loadPendingBids = useCallback(async () => {
+    if (!isClientMode) return;
+    try {
+      const jobsRes = await getMyJobs();
+      const jobs = jobsRes.data || [];
+      const openJobs = jobs.filter((j) => j.status === 'open' && (j.pending_count || 0) > 0);
+      const allBids = [];
+      for (const job of openJobs) {
+        try {
+          const res = await getJobProposals(job.job_id);
+          const pending = (res.data?.proposals || []).filter((p) => p.status === 'pending');
+          pending.forEach((p) => allBids.push({ ...p, jobTitle: job.title, jobId: job.job_id }));
+        } catch { /* skip */ }
+      }
+      setPendingBids(allBids);
+    } catch { /* silent */ }
+  }, [isClientMode]);
+
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    loadPendingBids();
+  }, [loadData, loadPendingBids]);
+
+  async function handleAcceptBid(proposalId) {
+    setBidActionId(proposalId);
+    try {
+      await acceptProposal(proposalId);
+      setActionSuccess('Proposal accepted! A contract has been created.');
+      await loadData();
+      await loadPendingBids();
+    } catch (err) {
+      setActionError(err.message || 'Could not accept this proposal.');
+    } finally {
+      setBidActionId(null);
+    }
+  }
+
+  async function handleRejectBid(proposalId) {
+    setBidActionId(proposalId);
+    try {
+      await rejectProposal(proposalId);
+      setPendingBids((prev) => prev.filter((p) => p.proposal_id !== proposalId));
+    } catch (err) {
+      setActionError(err.message || 'Could not reject this proposal.');
+    } finally {
+      setBidActionId(null);
+    }
+  }
 
   // Freelancer submits project deliverables
   async function handleSubmitWork(contractId) {
@@ -241,8 +295,11 @@ export default function Dashboard() {
               <h3 className="text-text-secondary text-[13px] font-medium mb-1">
                 {isClientMode ? 'Total Escrow Funded' : 'Total Contract Value'}
               </h3>
-              <p className="text-3xl font-display font-medium text-accent">
-                ₱{totalAgreedEscrow.toLocaleString()}
+              <p
+                className="text-3xl font-display font-medium text-accent"
+                title={currency !== 'PHP' ? formatPhp(totalAgreedEscrow) : undefined}
+              >
+                {convertAmount(totalAgreedEscrow)}
               </p>
               <p className="text-[11px] text-text-secondary mt-1">Secured via Supabase</p>
             </div>
@@ -350,8 +407,11 @@ export default function Dashboard() {
                             <div className="text-xs text-text-secondary">{partnerRole}</div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="font-semibold text-accent flex items-center gap-1.5">
-                              <span>₱{Number(c.agreed_amount || 0).toLocaleString()}</span>
+                            <div
+                              className="font-semibold text-accent flex items-center gap-1.5"
+                              title={currency !== 'PHP' ? formatPhp(c.agreed_amount) : undefined}
+                            >
+                              <span>{convertAmount(c.agreed_amount)}</span>
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">
                                 Escrow
                               </span>
@@ -476,25 +536,55 @@ export default function Dashboard() {
 
           {/* Section 2: mode-specific proposals view */}
           {isClientMode ? (
-            /* Client mode: a summary + link, not the full review UI (that lives on My Postings) */
+            /* Client mode: inline pending proposals with accept/reject */
             <div className="bg-panel border border-border rounded-lg overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/50">
-                <h2 className="font-display text-lg font-medium">Proposals Waiting for Review</h2>
-              </div>
-              <div className="px-6 py-10 text-center">
-                <p className="text-3xl font-display font-medium text-accent mb-1">{pendingProposalsCount}</p>
-                <p className="text-text-secondary text-sm mb-4">
-                  {pendingProposalsCount === 0
-                    ? 'No pending proposals across your job postings right now.'
-                    : `Pending proposal${pendingProposalsCount === 1 ? '' : 's'} across your job postings.`}
-                </p>
-                <Link
-                  to="/my-jobs"
-                  className="inline-block px-4 py-2 bg-accent text-[#1A1305] rounded-md text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
-                >
-                  Review Proposals
+                <h2 className="font-display text-lg font-medium">Pending Proposals Awaiting Review</h2>
+                <Link to="/my-jobs" className="text-sm text-accent hover:underline cursor-pointer">
+                  View all postings
                 </Link>
               </div>
+              {pendingBids.length === 0 ? (
+                <div className="px-6 py-10 text-center">
+                  <p className="text-text-secondary text-sm">No pending proposals right now.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {pendingBids.map((p) => {
+                    const fName = [p.users?.first_name, p.users?.last_name].filter(Boolean).join(' ') || p.users?.email || 'Freelancer';
+                    return (
+                      <div key={p.proposal_id} className="px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[12px] text-text-secondary">{p.jobTitle || 'Job Posting'}</p>
+                          <p className="font-medium text-text">{fName}</p>
+                          <p
+                            className="text-sm text-accent font-semibold"
+                            title={currency !== 'PHP' ? formatPhp(p.bid_amount) : undefined}
+                          >
+                            {convertAmount(p.bid_amount)}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleAcceptBid(p.proposal_id)}
+                            disabled={bidActionId === p.proposal_id}
+                            className="px-3 py-1.5 bg-accent text-[#1A1305] rounded-md text-xs font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            {bidActionId === p.proposal_id ? 'Working...' : 'Accept Bid'}
+                          </button>
+                          <button
+                            onClick={() => handleRejectBid(p.proposal_id)}
+                            disabled={bidActionId === p.proposal_id}
+                            className="px-3 py-1.5 border border-border text-text-secondary rounded-md text-xs font-medium hover:border-error/40 hover:text-error transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            {bidActionId === p.proposal_id ? 'Working...' : 'Reject Bid'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
             /* Freelancer mode: the bids you've submitted */
@@ -513,7 +603,13 @@ export default function Dashboard() {
 
               {(() => {
                 // Withdrawn proposals are managed on /my-proposals, not shown here.
-                const activeBids = proposals.filter((p) => p.status !== 'withdrawn');
+                // Sofia's UX polish: sort accepted proposals to the top.
+                const activeBids = [...proposals]
+                  .filter((p) => p.status !== 'withdrawn')
+                  .sort((a, b) => {
+                    const rank = { accepted: 1, pending: 2, rejected: 3 };
+                    return (rank[a.status] || 4) - (rank[b.status] || 4);
+                  });
                 return activeBids.length === 0 ? (
                 <div className="px-6 py-12 text-center">
                   <p className="font-display text-base font-medium mb-1">No proposals yet</p>
@@ -541,8 +637,11 @@ export default function Dashboard() {
                       {activeBids.map((p) => (
                         <tr key={p.proposal_id} className="hover:bg-surface/20 transition-colors">
                           <td className="px-6 py-4 font-medium text-text">{p.jobs?.title || 'Job Posting'}</td>
-                          <td className="px-6 py-4 font-sans font-medium text-accent">
-                            ₱{Number(p.bid_amount || 0).toLocaleString()}
+                          <td
+                            className="px-6 py-4 font-sans font-medium text-accent"
+                            title={currency !== 'PHP' ? formatPhp(p.bid_amount) : undefined}
+                          >
+                            {convertAmount(p.bid_amount)}
                           </td>
                           <td className="px-6 py-4">
                             <span

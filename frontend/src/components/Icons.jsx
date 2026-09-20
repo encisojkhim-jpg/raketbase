@@ -141,3 +141,11 @@ export function FileIcon(props) {
     </svg>
   );
 }
+
+export function MenuIcon(props) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" {...props}>
+      <path d="M3.5 5h13M3.5 10h13M3.5 15h13" />
+    </svg>
+  );
+}

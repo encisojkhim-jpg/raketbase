@@ -5,6 +5,7 @@ import Navbar from '../components/Navbar';
 import { CloseIcon, ClockIcon } from '../components/Icons';
 import { useCurrentUser } from '../utils/currentUser';
 import { getMyProposals } from '../services/api';
+import { useCurrency } from '../context/CurrencyContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
@@ -30,6 +31,8 @@ export default function Explore() {
 
   const currentUser = useCurrentUser();
   const isClientMode = currentUser.active_role === 'customer';
+
+  const { convertAmount, formatPhp, currency } = useCurrency();
 
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -147,7 +150,8 @@ export default function Explore() {
         const q = query.toLowerCase();
         const inTitle = j.title?.toLowerCase().includes(q);
         const inDesc = j.description?.toLowerCase().includes(q);
-        if (!inTitle && !inDesc) return false;
+        const inCategory = (j.categories?.category_name || '').toLowerCase().includes(q);
+        if (!inTitle && !inDesc && !inCategory) return false;
       }
       if (budget) {
         const amount = Number(j.budget) || 0;
@@ -244,6 +248,10 @@ export default function Explore() {
                   isClientMode={isClientMode}
                   currentUserId={currentUser.user_id}
                   proposalStatus={proposalStatusByJobId[String(job.job_id)]}
+                  convertAmount={convertAmount}
+                  formatPhp={formatPhp}
+                  currency={currency}
+                  onCategoryClick={(catId) => setActiveCategory(catId)}
                 />
               ))}
             </div>
@@ -255,8 +263,8 @@ export default function Explore() {
 }
 
 function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultCount, hideTaken, setHideTaken, onClose }) {
-  return (
-    <aside className="hidden w-[280px] shrink-0 md:block">
+  const filterContent = (
+    <>
       <div className="flex items-center justify-between">
         <h2 className="font-display text-xl font-semibold">Filters</h2>
         <button
@@ -289,7 +297,10 @@ function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultC
         </label>
 
         <div className="space-y-2 pt-2">
-          <button className="w-full rounded-md bg-accent py-3 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer">
+          <button
+            onClick={onClose}
+            className="w-full rounded-md bg-accent py-3 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer"
+          >
             Show {resultCount} results
           </button>
           <button
@@ -300,7 +311,29 @@ function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultC
           </button>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden w-[280px] shrink-0 md:block">
+        {filterContent}
+      </aside>
+
+      {/* Mobile drawer modal */}
+      <div
+        className="fixed inset-0 z-50 flex md:hidden bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        onClick={onClose}
+      >
+        <div
+          className="ml-auto w-[85%] max-w-sm h-full bg-panel p-6 overflow-y-auto border-l border-border shadow-2xl animate-in slide-in-from-right duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {filterContent}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -345,7 +378,7 @@ function RangeField({ label, unit, value, onChange, bounds, onReset }) {
   );
 }
 
-function JobCard({ job, onOpen, isClientMode, currentUserId, proposalStatus }) {
+function JobCard({ job, onOpen, isClientMode, currentUserId, proposalStatus, convertAmount, formatPhp, currency, onCategoryClick }) {
   const categoryName = job.categories?.category_name || 'Uncategorized';
   const posted = formatDate(job.created_at);
   const isTaken = job.status && job.status !== 'open';
@@ -368,7 +401,10 @@ function JobCard({ job, onOpen, isClientMode, currentUserId, proposalStatus }) {
       }`}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
-        <span className="rounded-full border border-border px-2.5 py-1 text-[12px] text-text-secondary">
+        <span
+          onClick={(e) => { e.stopPropagation(); onCategoryClick && onCategoryClick(categoryName.toLowerCase().replace(/\s+/g, '-')); }}
+          className="rounded-full border border-border px-2.5 py-1 text-[12px] text-text-secondary hover:border-accent/40 hover:text-accent cursor-pointer transition-colors"
+        >
           {categoryName}
         </span>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -404,8 +440,11 @@ function JobCard({ job, onOpen, isClientMode, currentUserId, proposalStatus }) {
 
       <p className="mb-4 text-[13px] font-medium text-text-secondary">
         Budget:{' '}
-        <span className={`font-sans text-base font-semibold ${isTaken ? 'text-text-secondary' : 'text-text'}`}>
-          ₱{job.budget ? Number(job.budget).toLocaleString() : '—'}
+        <span
+          className={`font-sans text-base font-semibold ${isTaken ? 'text-text-secondary' : 'text-text'}`}
+          title={currency !== 'PHP' ? formatPhp(job.budget) : undefined}
+        >
+          {convertAmount(job.budget)}
         </span>
       </p>
 
