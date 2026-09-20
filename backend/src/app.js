@@ -11,6 +11,7 @@ const adminRoutes = require('./routes/admin');
 const disputesRoutes = require('./routes/disputes');
 const reviewsRoutes = require('./routes/reviews');
 const topUsersRoutes = require('./routes/topUsers');
+const messagesRoutes = require('./routes/messages');
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/disputes', disputesRoutes);
 app.use('/api/v1/reviews', reviewsRoutes);
 app.use('/api/v1/top-users', topUsersRoutes);
+app.use('/api/v1/conversations', messagesRoutes);
 
 // 404 for anything unmatched (Must stay AFTER all route mounts)
 app.use((req, res) => {

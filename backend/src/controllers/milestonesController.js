@@ -1,0 +1,203 @@
+const { supabaseAdmin } = require('../config/supabase');
+
+async function loadContract(contract_id) {
+  const { data, error } = await supabaseAdmin
+    .from('contracts')
+    .select('contract_id, job_id, client_id, freelancer_id, status')
+    .eq('contract_id', contract_id)
+    .single();
+  if (error || !data) return null;
+  return data;
+}
+
+// Best-effort: posts a system message into the contract's conversation. A failure
+// here must never fail the milestone action itself (mirrors the conversation/
+// milestone-copy hooks in proposalsController.acceptProposal).
+async function postSystemMessage(contract_id, sender_id, content) {
+  try {
+    const { data: conversation } = await supabaseAdmin
+      .from('conversations')
+      .select('conversation_id')
+      .eq('contract_id', contract_id)
+      .single();
+    if (!conversation) return;
+    await supabaseAdmin.from('messages').insert([
+      {
+        conversation_id: conversation.conversation_id,
+        sender_id,
+        content,
+        message_type: 'system',
+      },
+    ]);
+  } catch (err) {
+    console.error('Failed to post system message for contract', contract_id, err);
+  }
+}
+
+// GET /api/v1/contracts/:id/milestones
+exports.listMilestones = async (req, res) => {
+  try {
+    const { id: contract_id } = req.params;
+    const userId = req.user.id;
+
+    const contract = await loadContract(contract_id);
+    if (!contract) return res.status(404).json({ success: false, error: 'Contract not found' });
+
+    const isParticipant = contract.client_id === userId || contract.freelancer_id === userId;
+    const isStaffOrAdmin = req.user.role === 'staff' || req.user.role === 'admin';
+    if (!isParticipant && !isStaffOrAdmin) {
+      return res.status(403).json({ success: false, error: 'You are not a participant in this contract' });
+    }
+
+    const { data: milestones, error } = await supabaseAdmin
+      .from('milestones')
+      .select('milestone_id, contract_id, title, amount, sequence, status, created_at, submitted_at, completed_at')
+      .eq('contract_id', contract_id)
+      .order('sequence', { ascending: true });
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, data: milestones || [] });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// PATCH /api/v1/contracts/:id/milestones/:milestoneId/submit
+// Freelancer submits the current 'active' milestone for review. Milestones are
+// sequential, so only the one milestone whose turn it is can ever be 'active'.
+exports.submitMilestone = async (req, res) => {
+  try {
+    const { id: contract_id, milestoneId } = req.params;
+    const userId = req.user.id;
+
+    if (req.user.active_role !== 'freelancer') {
+      return res.status(403).json({ success: false, error: 'Switch to Freelancer mode to submit milestone work.' });
+    }
+
+    const contract = await loadContract(contract_id);
+    if (!contract) return res.status(404).json({ success: false, error: 'Contract not found' });
+    if (contract.freelancer_id !== userId) {
+      return res.status(403).json({ success: false, error: 'Only the assigned freelancer can submit milestone work' });
+    }
+    if (contract.status !== 'active') {
+      return res.status(409).json({ success: false, error: `Cannot submit work on a contract that is currently '${contract.status}'` });
+    }
+
+    const { data: milestone, error: fetchError } = await supabaseAdmin
+      .from('milestones')
+      .select('milestone_id, contract_id, title, status')
+      .eq('milestone_id', milestoneId)
+      .eq('contract_id', contract_id)
+      .single();
+
+    if (fetchError || !milestone) return res.status(404).json({ success: false, error: 'Milestone not found' });
+    if (milestone.status !== 'active') {
+      return res.status(409).json({
+        success: false,
+        error: `This milestone is '${milestone.status}' — only the current milestone can be submitted.`,
+      });
+    }
+
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('milestones')
+      .update({ status: 'submitted', submitted_at: new Date().toISOString() })
+      .eq('milestone_id', milestoneId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    await postSystemMessage(contract_id, userId, `Milestone "${milestone.title}" was submitted for review.`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Milestone submitted for client review.',
+      data: updated,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// PATCH /api/v1/contracts/:id/milestones/:milestoneId/approve
+// Client approves a 'submitted' milestone, releasing that stage's escrow amount.
+// If it was the last milestone, the whole contract (and job) completes; otherwise
+// the next milestone in sequence becomes 'active'.
+exports.approveMilestone = async (req, res) => {
+  try {
+    const { id: contract_id, milestoneId } = req.params;
+    const userId = req.user.id;
+
+    if (req.user.active_role !== 'customer') {
+      return res.status(403).json({ success: false, error: 'Switch to Client mode to approve milestone work.' });
+    }
+
+    const contract = await loadContract(contract_id);
+    if (!contract) return res.status(404).json({ success: false, error: 'Contract not found' });
+    if (contract.client_id !== userId) {
+      return res.status(403).json({ success: false, error: 'Only the client can approve deliverables and release funds' });
+    }
+    if (contract.status !== 'active') {
+      return res.status(409).json({ success: false, error: `Cannot approve work on a contract that is currently '${contract.status}'` });
+    }
+
+    const { data: milestone, error: fetchError } = await supabaseAdmin
+      .from('milestones')
+      .select('milestone_id, contract_id, title, amount, sequence, status')
+      .eq('milestone_id', milestoneId)
+      .eq('contract_id', contract_id)
+      .single();
+
+    if (fetchError || !milestone) return res.status(404).json({ success: false, error: 'Milestone not found' });
+    if (milestone.status !== 'submitted') {
+      return res.status(409).json({
+        success: false,
+        error: `This milestone is '${milestone.status}' — only submitted work can be approved.`,
+      });
+    }
+
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('milestones')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('milestone_id', milestoneId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    await postSystemMessage(
+      contract_id,
+      userId,
+      `Milestone "${milestone.title}" was approved — ₱${Number(milestone.amount).toLocaleString()} released.`
+    );
+
+    // Is there a next milestone to activate, or was this the last one?
+    const { data: next } = await supabaseAdmin
+      .from('milestones')
+      .select('milestone_id')
+      .eq('contract_id', contract_id)
+      .eq('sequence', milestone.sequence + 1)
+      .maybeSingle();
+
+    let contractCompleted = false;
+    if (next) {
+      await supabaseAdmin.from('milestones').update({ status: 'active' }).eq('milestone_id', next.milestone_id);
+    } else {
+      await supabaseAdmin.from('contracts').update({ status: 'completed' }).eq('contract_id', contract_id);
+      if (contract.job_id) {
+        await supabaseAdmin.from('jobs').update({ status: 'completed' }).eq('job_id', contract.job_id);
+      }
+      await postSystemMessage(contract_id, userId, 'All milestones are complete — this contract is now closed.');
+      contractCompleted = true;
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `₱${Number(milestone.amount).toLocaleString()} released to freelancer.${contractCompleted ? ' Contract completed!' : ''}`,
+      data: { milestone: updated, contract_completed: contractCompleted },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};

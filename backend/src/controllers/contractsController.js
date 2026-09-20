@@ -45,10 +45,20 @@ exports.getContracts = async (req, res) => {
           bio,
           skills,
           portfolio_url
+        ),
+        milestones (
+          milestone_id,
+          title,
+          amount,
+          sequence,
+          status,
+          submitted_at,
+          completed_at
         )
       `)
       .or(`client_id.eq.${userId},freelancer_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .order('sequence', { foreignTable: 'milestones', ascending: true });
 
     if (error) throw error;
 
@@ -104,9 +114,19 @@ exports.getContractById = async (req, res) => {
           bio,
           skills,
           portfolio_url
+        ),
+        milestones (
+          milestone_id,
+          title,
+          amount,
+          sequence,
+          status,
+          submitted_at,
+          completed_at
         )
       `)
       .eq('contract_id', contract_id)
+      .order('sequence', { foreignTable: 'milestones', ascending: true })
       .single();
 
     if (error || !contract) {
@@ -155,6 +175,18 @@ exports.submitWork = async (req, res) => {
       return res.status(409).json({
         success: false,
         error: `Cannot submit work on a contract that is currently '${contract.status}'`,
+      });
+    }
+
+    const { data: milestoneCheck } = await supabaseAdmin
+      .from('milestones')
+      .select('milestone_id')
+      .eq('contract_id', contract_id)
+      .limit(1);
+    if (milestoneCheck && milestoneCheck.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'This contract uses milestones — submit each stage individually instead.',
       });
     }
 

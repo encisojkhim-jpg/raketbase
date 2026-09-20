@@ -286,6 +286,22 @@ function ProposalCard({ proposal, jobIsOpen, busy, onAccept, onReject }) {
         {proposal.cover_letter}
       </p>
 
+      {proposal.proposal_milestones?.length > 0 && (
+        <div className="mt-4 border-t border-border pt-4">
+          <p className="mb-2 text-[12px] font-medium text-text-secondary">Milestone breakdown</p>
+          <ul className="space-y-1.5">
+            {proposal.proposal_milestones.map((m, i) => (
+              <li key={m.proposal_milestone_id} className="flex items-center justify-between text-[13px]">
+                <span className="text-text">
+                  {i + 1}. {m.title}
+                </span>
+                <span className="font-medium text-accent">₱{Number(m.amount).toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {jobIsOpen && proposal.status === 'pending' && (
         <div className="mt-4 flex gap-2.5 border-t border-border pt-4">
           <button

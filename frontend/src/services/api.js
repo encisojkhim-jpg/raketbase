@@ -144,6 +144,19 @@ export function completeContract(contractId) {
   return request(`/contracts/${contractId}/complete`, { method: 'PATCH' });
 }
 
+// Milestone-based contracts (Part 6)
+export function getContractMilestones(contractId) {
+  return request(`/contracts/${contractId}/milestones`);
+}
+
+export function submitMilestone(contractId, milestoneId) {
+  return request(`/contracts/${contractId}/milestones/${milestoneId}/submit`, { method: 'PATCH' });
+}
+
+export function approveMilestone(contractId, milestoneId) {
+  return request(`/contracts/${contractId}/milestones/${milestoneId}/approve`, { method: 'PATCH' });
+}
+
 // Admin API (Part 4)
 export function getAdminAnalytics() {
   return request('/admin/analytics');
@@ -195,6 +208,40 @@ export function createReview(payload) {
 // Public profile + ratings for one person in one role ('freelancer' | 'customer').
 export function getUserReviews(userId, role) {
   return request(`/reviews/users/${userId}?role=${role}`);
+}
+
+// Messaging API (Part 5)
+export function getConversations() {
+  return request('/conversations');
+}
+
+export function getConversation(conversationId) {
+  return request(`/conversations/${conversationId}`);
+}
+
+export function getConversationMessages(conversationId) {
+  return request(`/conversations/${conversationId}/messages`);
+}
+
+// { content?, file? } — at least one is required.
+export function sendMessage(conversationId, { content, file } = {}) {
+  const formData = new FormData();
+  if (content) formData.append('content', content);
+  if (file) formData.append('file', file);
+  return request(`/conversations/${conversationId}/messages`, { method: 'POST', body: formData });
+}
+
+// Returns { url } — a short-lived signed Supabase Storage URL for the attachment.
+export function getAttachmentDownloadUrl(conversationId, messageId) {
+  return request(`/conversations/${conversationId}/messages/${messageId}/download`);
+}
+
+export function confirmDeleteConversation(conversationId) {
+  return request(`/conversations/${conversationId}/delete-confirm`, { method: 'POST' });
+}
+
+export function cancelDeleteConversation(conversationId) {
+  return request(`/conversations/${conversationId}/delete-cancel`, { method: 'POST' });
 }
 
 // Top Users list. params: { role: 'freelancer' | 'customer', minRating?, minPrice?, maxPrice?, limit?, offset? }

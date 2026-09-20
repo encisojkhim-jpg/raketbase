@@ -172,6 +172,18 @@ export default function Navbar({
           Top Users
         </Link>
 
+        {/* Messages link: one chat per contract, on either side of a job */}
+        {token && (
+          <Link
+            to="/messages"
+            className={`text-sm font-medium transition-colors cursor-pointer ${
+              location.pathname.startsWith('/messages') ? 'text-accent font-semibold' : 'text-text-secondary hover:text-text'
+            }`}
+          >
+            Messages
+          </Link>
+        )}
+
         {/* My Postings link: where a client reviews and acts on incoming proposals */}
         {user.active_role === 'customer' && (
           <Link

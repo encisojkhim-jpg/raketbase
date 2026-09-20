@@ -2,9 +2,12 @@ const { supabaseAdmin } = require('../config/supabase');
 const { getRatingSummaries, emptySummary } = require('../utils/ratings');
 
 // POST /api/v1/proposals - Submit a proposal for a job
+// For a 'milestone' budget_type job, `milestones` (an array of { title, amount })
+// replaces `bid_amount`: the total bid is derived server-side as the sum of the
+// stages, so the two numbers can never drift apart. Fixed-price jobs are unchanged.
 exports.createProposal = async (req, res) => {
   try {
-    const { job_id, bid_amount, cover_letter } = req.body;
+    const { job_id, bid_amount, cover_letter, milestones } = req.body;
     // req.user is appended by JWT auth middleware
     const freelancer_id = req.user.id;
 
@@ -16,17 +19,17 @@ exports.createProposal = async (req, res) => {
       });
     }
 
-    if (!job_id || !bid_amount || !cover_letter) {
+    if (!job_id || !cover_letter) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: job_id, bid_amount, and cover_letter'
+        error: 'Missing required fields: job_id and cover_letter'
       });
     }
 
     // Nobody may bid on a job they posted themselves, regardless of mode.
     const { data: job, error: jobError } = await supabaseAdmin
       .from('jobs')
-      .select('job_id, client_id, status')
+      .select('job_id, client_id, status, budget_type')
       .eq('job_id', job_id)
       .single();
 
@@ -47,13 +50,49 @@ exports.createProposal = async (req, res) => {
       });
     }
 
+    const isMilestoneJob = job.budget_type === 'milestone';
+    let finalBidAmount = bid_amount;
+    let cleanMilestones = [];
+
+    if (isMilestoneJob) {
+      if (!Array.isArray(milestones) || milestones.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'This job is milestone-based — break your bid into at least one milestone.',
+        });
+      }
+      for (const m of milestones) {
+        const title = (m?.title || '').trim();
+        const amount = Number(m?.amount);
+        if (!title) {
+          return res.status(400).json({ success: false, error: 'Every milestone needs a title.' });
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+          return res.status(400).json({ success: false, error: `Milestone "${title}" needs an amount greater than ₱0.` });
+        }
+        cleanMilestones.push({ title, amount });
+      }
+      // The bid total is always the sum of its stages — never trust a client-sent bid_amount here.
+      finalBidAmount = cleanMilestones.reduce((sum, m) => sum + m.amount, 0);
+    } else {
+      if (!bid_amount || Number(bid_amount) <= 0) {
+        return res.status(400).json({ success: false, error: 'Missing required field: bid_amount' });
+      }
+      if (Array.isArray(milestones) && milestones.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'This job is fixed-price — it does not accept a milestone breakdown.',
+        });
+      }
+    }
+
     const { data: proposal, error } = await supabaseAdmin
       .from('proposals')
       .insert([
         {
           job_id,
           freelancer_id,
-          bid_amount,
+          bid_amount: finalBidAmount,
           cover_letter,
           status: 'pending'
         }
@@ -62,6 +101,22 @@ exports.createProposal = async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    if (isMilestoneJob) {
+      const { error: milestoneError } = await supabaseAdmin.from('proposal_milestones').insert(
+        cleanMilestones.map((m, i) => ({
+          proposal_id: proposal.proposal_id,
+          title: m.title,
+          amount: m.amount,
+          sequence: i + 1,
+        }))
+      );
+      if (milestoneError) {
+        // Don't leave a half-formed proposal behind if the breakdown failed to save.
+        await supabaseAdmin.from('proposals').delete().eq('proposal_id', proposal.proposal_id);
+        throw milestoneError;
+      }
+    }
 
     return res.status(201).json({ success: true, data: proposal });
   } catch (error) {
@@ -87,9 +142,10 @@ exports.getMyProposals = async (req, res) => {
 
     const { data: proposals, error } = await supabaseAdmin
       .from('proposals')
-      .select('*, jobs(title, budget, status)')
+      .select('*, jobs(title, budget, status), proposal_milestones(proposal_milestone_id, title, amount, sequence)')
       .eq('freelancer_id', freelancer_id)
-      .order('submitted_at', { ascending: false });
+      .order('submitted_at', { ascending: false })
+      .order('sequence', { foreignTable: 'proposal_milestones', ascending: true });
 
     if (error) throw error;
 
@@ -130,10 +186,15 @@ exports.getProposalsForJob = async (req, res) => {
     // their perspective a withdrawn proposal simply isn't there anymore.
     const { data: proposals, error } = await supabaseAdmin
       .from('proposals')
-      .select('*, users!proposals_freelancer_id_fkey(first_name, last_name, email, bio, skills, portfolio_url)')
+      .select(`
+        *,
+        users!proposals_freelancer_id_fkey(first_name, last_name, email, bio, skills, portfolio_url),
+        proposal_milestones(proposal_milestone_id, title, amount, sequence)
+      `)
       .eq('job_id', job_id)
       .neq('status', 'withdrawn')
-      .order('submitted_at', { ascending: false });
+      .order('submitted_at', { ascending: false })
+      .order('sequence', { foreignTable: 'proposal_milestones', ascending: true });
 
     if (error) throw error;
 
@@ -186,6 +247,56 @@ exports.acceptProposal = async (req, res) => {
         return res.status(409).json({ success: false, error: msg });
       }
       return res.status(500).json({ success: false, error: msg });
+    }
+
+    // Auto-create the chat for this new contract. Best-effort: a failure here must
+    // never undo the already-committed contract/proposal acceptance. If a freelancer
+    // has multiple accepted jobs from the same client, each contract gets its own
+    // conversation (conversations.contract_id is unique per contract).
+    try {
+      const { data: job } = await supabaseAdmin
+        .from('jobs')
+        .select('title')
+        .eq('job_id', contract.job_id)
+        .single();
+
+      await supabaseAdmin.from('conversations').insert([
+        {
+          contract_id: contract.contract_id,
+          client_id: contract.client_id,
+          freelancer_id: contract.freelancer_id,
+          title: job?.title || 'Job Chat',
+        },
+      ]);
+    } catch (chatError) {
+      console.error('Failed to auto-create conversation for contract', contract.contract_id, chatError);
+    }
+
+    // Lock in the milestone breakdown, if the accepted proposal had one. The RPC
+    // itself doesn't know about milestones (it only writes contracts), so this
+    // copies proposal_milestones -> milestones the same best-effort way the
+    // conversation above is created. The first stage starts 'active'; the rest
+    // wait their turn (sequential — see milestonesController.js).
+    try {
+      const { data: proposalMilestones } = await supabaseAdmin
+        .from('proposal_milestones')
+        .select('title, amount, sequence')
+        .eq('proposal_id', proposal_id)
+        .order('sequence', { ascending: true });
+
+      if (proposalMilestones && proposalMilestones.length > 0) {
+        await supabaseAdmin.from('milestones').insert(
+          proposalMilestones.map((m) => ({
+            contract_id: contract.contract_id,
+            title: m.title,
+            amount: m.amount,
+            sequence: m.sequence,
+            status: m.sequence === 1 ? 'active' : 'pending',
+          }))
+        );
+      }
+    } catch (milestoneError) {
+      console.error('Failed to copy milestones for contract', contract.contract_id, milestoneError);
     }
 
     return res.status(200).json({

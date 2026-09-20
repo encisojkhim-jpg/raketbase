@@ -18,7 +18,7 @@ export function dismissToast() {
 
 export function showToast(message, duration = 5000) {
   clearTimeout(timer);
-  toast = { id: Date.now(), message };
+  toast = { id: Date.now(), message, duration };
   emit();
   timer = setTimeout(dismissToast, duration);
 }

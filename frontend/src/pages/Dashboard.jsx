@@ -21,6 +21,7 @@ import {
 } from '../services/api';
 import { useCurrentUser } from '../utils/currentUser';
 import RateContractModal from '../components/RateContractModal';
+import MilestonesModal from '../components/MilestonesModal';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -34,6 +35,8 @@ export default function Dashboard() {
   const [actioningId, setActioningId] = useState(null);
   // Contract currently being rated in the rating modal (null = closed).
   const [ratingContract, setRatingContract] = useState(null);
+  // Contract whose milestone breakdown is open in the modal (null = closed).
+  const [milestonesContract, setMilestonesContract] = useState(null);
 
   const user = useCurrentUser();
   // 'customer' active_role is Client mode; anything else is Freelancer mode.
@@ -377,33 +380,48 @@ export default function Dashboard() {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            {/* Freelancer Action: Submit Work */}
-                            {!isClient && c.status === 'active' && (
-                              <button
-                                onClick={() => handleSubmitWork(c.contract_id)}
-                                disabled={actioningId === c.contract_id}
-                                className="px-3 py-1.5 bg-accent text-[#1A1305] rounded-md text-xs font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 cursor-pointer"
-                              >
-                                {actioningId === c.contract_id ? 'Submitting...' : 'Submit Work'}
-                              </button>
-                            )}
+                            {/* Milestone-based contract: everything happens inside the modal, one stage at a time */}
+                            {c.milestones?.length > 0 ? (
+                              c.status === 'active' && (
+                                <button
+                                  onClick={() => setMilestonesContract(c)}
+                                  className="px-3 py-1.5 border border-accent/40 text-accent rounded-md text-xs font-semibold hover:bg-accent/10 transition-colors cursor-pointer"
+                                >
+                                  Milestones ({c.milestones.filter((m) => m.status === 'completed').length}/
+                                  {c.milestones.length})
+                                </button>
+                              )
+                            ) : (
+                              <>
+                                {/* Freelancer Action: Submit Work */}
+                                {!isClient && c.status === 'active' && (
+                                  <button
+                                    onClick={() => handleSubmitWork(c.contract_id)}
+                                    disabled={actioningId === c.contract_id}
+                                    className="px-3 py-1.5 bg-accent text-[#1A1305] rounded-md text-xs font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 cursor-pointer"
+                                  >
+                                    {actioningId === c.contract_id ? 'Submitting...' : 'Submit Work'}
+                                  </button>
+                                )}
 
-                            {/* Client Action: Approve Deliverables & Release Funds (strictly from submitted status) */}
-                            {isClient && c.status === 'submitted' && (
-                              <button
-                                onClick={() => handleApproveAndRelease(c)}
-                                disabled={actioningId === c.contract_id}
-                                className="px-3 py-1.5 bg-emerald-500 text-black rounded-md text-xs font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
-                              >
-                                {actioningId === c.contract_id ? 'Releasing...' : 'Approve & Release Funds'}
-                              </button>
-                            )}
+                                {/* Client Action: Approve Deliverables & Release Funds (strictly from submitted status) */}
+                                {isClient && c.status === 'submitted' && (
+                                  <button
+                                    onClick={() => handleApproveAndRelease(c)}
+                                    disabled={actioningId === c.contract_id}
+                                    className="px-3 py-1.5 bg-emerald-500 text-black rounded-md text-xs font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+                                  >
+                                    {actioningId === c.contract_id ? 'Releasing...' : 'Approve & Release Funds'}
+                                  </button>
+                                )}
 
-                            {/* Client awaiting freelancer deliverables */}
-                            {isClient && c.status === 'active' && (
-                              <span className="text-xs text-text-secondary">
-                                Work in Progress
-                              </span>
+                                {/* Client awaiting freelancer deliverables */}
+                                {isClient && c.status === 'active' && (
+                                  <span className="text-xs text-text-secondary">
+                                    Work in Progress
+                                  </span>
+                                )}
+                              </>
                             )}
 
                             {/* Completed Badge */}
@@ -558,6 +576,24 @@ export default function Dashboard() {
           isClient={ratingContract.client_id === user.user_id}
           onClose={() => setRatingContract(null)}
           onSubmitted={handleRatingSubmitted}
+        />
+      )}
+
+      {milestonesContract && (
+        <MilestonesModal
+          contract={milestonesContract}
+          isClient={milestonesContract.client_id === user.user_id}
+          onClose={() => {
+            setMilestonesContract(null);
+            loadData();
+          }}
+          onUpdated={loadData}
+          onContractCompleted={(contract) => {
+            setMilestonesContract(null);
+            setActionSuccess('All milestones released! Contract marked as completed.');
+            loadData();
+            setRatingContract(contract);
+          }}
         />
       )}
     </div>

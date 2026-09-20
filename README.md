@@ -30,15 +30,24 @@ Changes 2
 
 
 Changes 3
+
 [General Changes]
 - Added a top users page, now top freelancers and clients can be displayed
+- Added a messaging functionality
 
 [User Profile changes]
 - There is now an average price for both freelancers and clients, this is used in the top users page
+
+[Job Changes]
+- There is now a fully functioning milestone feature, integrated with the Messaging feature
+
+[Database changes]
+- Schema.sql now has content
+- Edited the db to support the messaging feature including RLS and Buckets
 
 Roadmap
 - Make it so that people who choose the freelancer option also need to put in their bank details and phone number
 - Make it so that people who choose the client option choose whether or not they are a small business or a major contractor and need to put in their business name. 
 - Have the toast that appears when changing from client to freelancer slide in and have a mini loading bar to show how much time is left before it disappears
-- Develop a messaging system
+- Develop a messaging system - Complete
 - Have clients be able to delete their posting as long as they have not accepted a freelancer for it yet

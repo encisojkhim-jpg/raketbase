@@ -16,6 +16,7 @@ import Toaster from './components/Toaster';
 import CreateJob from './pages/CreateJob';
 import ClientJobView from './pages/ClientJobView';
 import DisputeTicket from './pages/DisputeTicket';
+import Messages from './pages/Messages';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminRoute from './pages/AdminRoute';
 import { useThemeSync } from './utils/useThemeSync';
@@ -58,6 +59,9 @@ function App() {
         </Route>
         {/* Part 4: any contract participant can file a dispute */}
         <Route path="/contracts/:id/dispute" element={<DisputeTicket />} />
+        {/* Part 5: messaging, one conversation per contract */}
+        <Route path="/messages" element={<Messages />} />
+        <Route path="/messages/:id" element={<Messages />} />
       </Route>
 
       {/* Part 4: Admin-only routes */}

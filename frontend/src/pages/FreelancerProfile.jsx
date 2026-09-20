@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { ClockIcon } from '../components/Icons';
+import { ClockIcon, PlusIcon, CloseIcon } from '../components/Icons';
 import ClientRatingCard from '../components/ClientRatingCard';
 import ProposalBlockedNotice from '../components/ProposalBlockedNotice';
 import { getProposalBlockReason } from '../utils/proposalEligibility';
@@ -30,6 +30,9 @@ export default function FreelancerProfile() {
   // Proposal form state
   const [bidAmount, setBidAmount] = useState('');
   const [coverLetter, setCoverLetter] = useState('');
+  // Milestone-based jobs (budget_type === 'milestone') replace the single bid
+  // amount with a stage breakdown. Each row: { title, amount }.
+  const [milestoneRows, setMilestoneRows] = useState([{ title: '', amount: '' }]);
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
 
@@ -105,13 +108,35 @@ export default function FreelancerProfile() {
     };
   }, [id]);
 
+  const isMilestoneJob = job?.budget_type === 'milestone';
+  const milestoneTotal = milestoneRows.reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
+
+  function addMilestoneRow() {
+    setMilestoneRows((rows) => [...rows, { title: '', amount: '' }]);
+  }
+  function removeMilestoneRow(index) {
+    setMilestoneRows((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows));
+  }
+  function updateMilestoneRow(index, field, value) {
+    setMilestoneRows((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  }
+
   // Compute field validation rules
   function getValidationErrors() {
     const errors = {};
-    const amount = Number(bidAmount);
 
-    if (!String(bidAmount).trim() || Number.isNaN(amount) || amount <= 0) {
-      errors.bidAmount = 'Enter a bid amount greater than 0.';
+    if (isMilestoneJob) {
+      const invalid = milestoneRows.some(
+        (m) => !m.title.trim() || !Number.isFinite(Number(m.amount)) || Number(m.amount) <= 0
+      );
+      if (invalid) {
+        errors.milestones = 'Every milestone needs a title and an amount greater than ₱0.';
+      }
+    } else {
+      const amount = Number(bidAmount);
+      if (!String(bidAmount).trim() || Number.isNaN(amount) || amount <= 0) {
+        errors.bidAmount = 'Enter a bid amount greater than 0.';
+      }
     }
 
     if (!coverLetter.trim()) {
@@ -126,6 +151,7 @@ export default function FreelancerProfile() {
   const errors = getValidationErrors();
   // Only display errors if field was focused and blurred (touched) or submit was clicked
   const showBidError = (touched.bidAmount || submitted) && errors.bidAmount;
+  const showMilestonesError = submitted && errors.milestones;
   const showCoverLetterError = (touched.coverLetter || submitted) && errors.coverLetter;
 
   // Handle proposal submission
@@ -144,17 +170,25 @@ export default function FreelancerProfile() {
         throw new Error('You need to be logged in to submit a proposal.');
       }
 
+      const payload = isMilestoneJob
+        ? {
+            job_id: job.job_id,
+            cover_letter: coverLetter.trim(),
+            milestones: milestoneRows.map((m) => ({ title: m.title.trim(), amount: Number(m.amount) })),
+          }
+        : {
+            job_id: job.job_id,
+            bid_amount: Number(bidAmount),
+            cover_letter: coverLetter.trim(),
+          };
+
       const res = await fetch(`${API_BASE_URL}/proposals`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          job_id: job.job_id,
-          bid_amount: Number(bidAmount),
-          cover_letter: coverLetter.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const body = await res.json();
@@ -180,6 +214,7 @@ export default function FreelancerProfile() {
       });
       setBidAmount('');
       setCoverLetter('');
+      setMilestoneRows([{ title: '', amount: '' }]);
     } catch (err) {
       setSubmitResult({
         type: 'error',
@@ -296,26 +331,81 @@ export default function FreelancerProfile() {
               )}
 
               <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-                {/* Bid Amount Input */}
-                <div>
-                  <label className="mb-1.5 block text-[13px] font-medium text-text-secondary">
-                    Your bid (₱)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    disabled={submitting || alreadyApplied}
-                    value={bidAmount}
-                    onChange={(e) => setBidAmount(e.target.value)}
-                    onBlur={() => setTouched((t) => ({ ...t, bidAmount: true }))}
-                    className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed"
-                    placeholder="e.g. 15000"
-                  />
-                  {showBidError && (
-                    <p className="mt-1 text-[12px] text-red-400">{errors.bidAmount}</p>
-                  )}
-                </div>
+                {isMilestoneJob ? (
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <label className="text-[13px] font-medium text-text-secondary">Milestone Breakdown</label>
+                      <span className="text-[13px] font-semibold text-accent">
+                        Total: ₱{milestoneTotal.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {milestoneRows.map((row, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            disabled={submitting || alreadyApplied}
+                            placeholder={`Milestone ${index + 1} (e.g. Wireframes)`}
+                            value={row.title}
+                            onChange={(e) => updateMilestoneRow(index, 'title', e.target.value)}
+                            className="min-w-0 flex-1 rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed"
+                          />
+                          <input
+                            type="number"
+                            min="1"
+                            step="0.01"
+                            disabled={submitting || alreadyApplied}
+                            placeholder="₱ Amount"
+                            value={row.amount}
+                            onChange={(e) => updateMilestoneRow(index, 'amount', e.target.value)}
+                            className="w-28 shrink-0 rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeMilestoneRow(index)}
+                            disabled={submitting || alreadyApplied || milestoneRows.length === 1}
+                            className="shrink-0 text-text-secondary hover:text-error disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                            aria-label="Remove milestone"
+                          >
+                            <CloseIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addMilestoneRow}
+                      disabled={submitting || alreadyApplied}
+                      className="mt-2.5 flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <PlusIcon className="h-3.5 w-3.5" />
+                      Add another milestone
+                    </button>
+                    {showMilestonesError && (
+                      <p className="mt-1.5 text-[12px] text-red-400">{errors.milestones}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="mb-1.5 block text-[13px] font-medium text-text-secondary">
+                      Your bid (₱)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      disabled={submitting || alreadyApplied}
+                      value={bidAmount}
+                      onChange={(e) => setBidAmount(e.target.value)}
+                      onBlur={() => setTouched((t) => ({ ...t, bidAmount: true }))}
+                      className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed"
+                      placeholder="e.g. 15000"
+                    />
+                    {showBidError && (
+                      <p className="mt-1 text-[12px] text-red-400">{errors.bidAmount}</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Cover Letter Textarea */}
                 <div>
