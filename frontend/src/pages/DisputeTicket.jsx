@@ -78,105 +78,8 @@ export default function DisputeTicket() {
 
   return (
     <>
-      {/* Sidebar */}
-      <div className="sidebar-wrapper" id="sidebar">
-        <Link to="/" className="sidebar-brand text-decoration-none d-flex align-items-center gap-1" style={{ padding: "10px 0" }}>
-          <img src="/racketbaseSVG.svg" alt="RaketBase Logo" style={{ height: "50px", objectFit: "contain", marginTop: "-8px" }} />
-          <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: "24px", color: "#fff", letterSpacing: "0.5px", display: "flex", alignItems: "center" }}>
-            <span style={{ fontWeight: 800 }}>RAKET</span>
-            <span style={{ fontWeight: 400 }}>BASE</span>
-          </div>
-        </Link>
-        <div className="flex-grow-1 overflow-y-auto mt-4">
-          <div className="sidebar-menu-section">
-            <div className="sidebar-menu-title">Menu</div>
-            <ul className="sidebar-menu-list">
-              <li className="sidebar-menu-item">
-                <Link to="/dashboard" className="sidebar-menu-link">
-                  <i className="bi bi-grid-fill"></i><span>Dashboard</span>
-                </Link>
-              </li>
-              <li className="sidebar-menu-item">
-                <Link to="/messages" className="sidebar-menu-link">
-                  <i className="bi bi-chat-dots"></i><span>Messages</span>
-                </Link>
-              </li>
-              <li className="sidebar-menu-item">
-                <Link to="/top-users" className="sidebar-menu-link">
-                  <i className="bi bi-star"></i><span>Top Freelancers</span>
-                </Link>
-              </li>
-              <li className="sidebar-menu-item">
-                <Link to={`/freelancer/${user?.user_id || user?.id}`} className="sidebar-menu-link">
-                  <i className="bi bi-person"></i><span>My Account</span>
-                </Link>
-              </li>
-            </ul>
-          </div>
-          <div className="sidebar-menu-section">
-            <div className="sidebar-menu-title">Jobs</div>
-            <ul className="sidebar-menu-list">
-              <li className="sidebar-menu-item">
-                <Link to="/explore" className="sidebar-menu-link">
-                  <i className="bi bi-search"></i><span>Explore Jobs</span>
-                </Link>
-              </li>
-              {user?.active_role === "freelancer" && (
-                <li className="sidebar-menu-item">
-                  <Link to="/my-proposals" className="sidebar-menu-link">
-                    <i className="bi bi-file-earmark-text"></i><span>My Proposals</span>
-                  </Link>
-                </li>
-              )}
-              {user?.active_role === "customer" && (
-                <>
-                  <li className="sidebar-menu-item">
-                    <Link to="/my-jobs" className="sidebar-menu-link">
-                      <i className="bi bi-briefcase"></i><span>My Postings</span>
-                    </Link>
-                  </li>
-                  <li className="sidebar-menu-item">
-                    <Link to="/jobs/create" className="sidebar-menu-link">
-                      <i className="bi bi-plus-circle"></i><span>Post a Job</span>
-                    </Link>
-                  </li>
-                </>
-              )}
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="main-wrapper">
-        <div className="header-container fixed-top" style={{ position: "sticky" }}>
-          <header className="header navbar navbar-expand-sm expand-header">
-            <div className="navbar-left">
-              <button className="sidebar-toggle-btn me-2" id="sidebar-toggle">
-                <i className="bi bi-list"></i>
-              </button>
-            </div>
-            <div className="navbar-search-wrapper">
-              <input type="text" className="navbar-search-input" placeholder="Search..." />
-              <i className="bi bi-search search-icon"></i>
-            </div>
-            <ul className="navbar-nav ms-auto align-items-center">
-              <li className="nav-item">
-                <div className="d-flex align-items-center gap-2 px-3 py-1 bg-light rounded-pill border">
-                  <span className="small text-muted fw-medium text-capitalize">{user?.active_role} Mode</span>
-                </div>
-              </li>
-              <li className="nav-item">
-                <Link to={`/freelancer/${user?.user_id}`} className="nav-link d-flex align-items-center">
-                  <img src={user?.avatar_url || "https://ui-avatars.com/api/?name=User&background=random"} alt="Profile" className="rounded-circle border" style={{ width: "36px", height: "36px", objectFit: "cover" }} />
-                </Link>
-              </li>
-            </ul>
-          </header>
-        </div>
-
-        {/* Page Content Here */}
-        <div className="row g-4 px-3 mb-4 justify-content-center">
+      {/* Page Content Here */}
+        <div className="row g-4 mb-4 justify-content-center">
           <div className="col-12 col-md-8 col-xl-6 mt-4">
             {loadingContract ? (
               <div className="d-flex flex-column align-items-center justify-content-center p-5 mt-5">
@@ -315,7 +218,6 @@ export default function DisputeTicket() {
             )}
           </div>
         </div>
-      </div>
     </>
   );
 }

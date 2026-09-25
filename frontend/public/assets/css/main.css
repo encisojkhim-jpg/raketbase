@@ -1334,6 +1334,7 @@ body.sidebar-minimized .sidebar-profile {
         padding: 1rem 1.5rem;
         flex-wrap: wrap;
         gap: 0.75rem;
+        justify-content: space-between;
     }
 }
 

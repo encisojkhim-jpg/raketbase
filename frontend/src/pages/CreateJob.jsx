@@ -63,7 +63,7 @@ export default function CreateJob() {
   }
 
   return (
-    <div className="container-fluid py-4">
+    <>
       <div className="row justify-content-center">
         <div className="col-12 col-md-10 col-lg-8 col-xl-6">
           <div className="card shadow-sm border-0">
@@ -188,6 +188,6 @@ export default function CreateJob() {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

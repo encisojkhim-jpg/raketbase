@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import BackToTop from '../components/BackToTop';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
@@ -122,7 +123,7 @@ export default function Explore() {
           )}
         </div>
 
-        <div className="row g-4 px-3 mb-4">
+        <div className="row g-4 mb-4">
           <div className="col-xl-9 col-lg-8 order-2">
             <div className="d-flex flex-wrap gap-2 mb-4 pb-2">
               {categories.map((c) => {
@@ -180,9 +181,9 @@ export default function Explore() {
                 onClose={() => setFiltersOpen(false)}
               />
             )}
-          </div>
-        </div>
-      
+                  </div>
+      </div>
+      <BackToTop />
     </>
   );
 }

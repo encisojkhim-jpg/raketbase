@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { getTopUsers } from '../services/api';
+import BackToTop from '../components/BackToTop';
 
 const PAGE_SIZE = 12;
 
@@ -119,7 +120,22 @@ export default function TopUsers() {
 
         
 
-        <div className="row g-4 px-3 mb-4">
+
+        <div className="page-header d-flex justify-content-between align-items-center">
+          <div>
+            <h1 className="page-title">Top users</h1>
+            <p className="page-subtitle">
+              Ranked by average rating. Only {who} with at least {minReviews} reviews are listed.
+            </p>
+          </div>
+          <button
+            onClick={() => setFiltersOpen((v) => !v)}
+            className="btn btn-outline-secondary d-md-none rounded-pill"
+          >
+            <i className="bi bi-funnel"></i> Filters{filtersActive ? ' �' : ''}
+          </button>
+        </div>
+        <div className="row g-4 mb-4">
           <div className="col-12 col-xl-3 col-lg-4 sticky-filter">
             <FiltersSidebar
               isFreelancer={isFreelancer}
@@ -138,20 +154,6 @@ export default function TopUsers() {
           </div>
 
           <div className="col-12 col-xl-9 col-lg-8">
-            <div className="d-flex align-items-start justify-content-between gap-3 mb-4">
-              <div>
-                <h2 className="fw-bold mb-1">Top users</h2>
-                <p className="text-muted small mb-0">
-                  Ranked by average rating. Only {who} with at least {minReviews} reviews are listed.
-                </p>
-              </div>
-              <button
-                onClick={() => setFiltersOpen((v) => !v)}
-                className="btn btn-outline-secondary d-md-none"
-              >
-                <i className="bi bi-funnel"></i> Filters{filtersActive ? ' •' : ''}
-              </button>
-            </div>
 
             <div className="d-flex gap-2 mb-4 border-bottom pb-2">
               {[
@@ -226,10 +228,10 @@ export default function TopUsers() {
             )}
           </div>
         </div>
-      
-    </>
-  );
-}
+        <BackToTop />
+      </>
+    );
+  }
 
 function FiltersSidebar({
   isFreelancer,

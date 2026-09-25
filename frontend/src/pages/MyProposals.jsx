@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getMyProposals, withdrawProposal, unwithdrawProposal } from '../services/api';
+import BackToTop from '../components/BackToTop';
 
 const FILTERS = [
   { value: 'all', label: 'All' },
@@ -89,14 +90,17 @@ export default function MyProposals() {
 
 
         {/* Page Content Here */}
-        <div className="row g-4 px-3 mb-4">
-          <div className="col-xl-8 mx-auto">
-            <div className="mb-4">
-              <h1 className="fw-bold fs-3 mb-1">My Proposals</h1>
-              <p className="text-muted small mb-0">
-                Track every bid you've sent, and manage the ones still in play.
-              </p>
-            </div>
+        <div className="page-header d-flex justify-content-between align-items-center">
+          <div>
+            <h1 className="page-title">My Proposals</h1>
+            <p className="page-subtitle">
+              Track every bid you've sent, and manage the ones still in play.
+            </p>
+          </div>
+        </div>
+
+        <div className="row g-4 mb-4">
+          <div className="col-12">
 
             {/* Status filter tabs */}
             <div className="d-flex flex-wrap gap-2 mb-4">
@@ -153,6 +157,7 @@ export default function MyProposals() {
           </div>
         </div>
       
+      <BackToTop />
     </>
   );
 }

@@ -34,15 +34,15 @@ function MyJobsList() {
   }, []);
 
   return (
-    <div className="col-12">
-      <div className="d-flex align-items-center justify-content-between mb-4">
+    <>
+      <div className="page-header d-flex justify-content-between align-items-center">
         <div>
-          <h1 className="h3 fw-bold mb-1">My job postings</h1>
-          <p className="text-muted small mb-0">Review proposals and choose who gets the work.</p>
+          <h1 className="page-title">My job postings</h1>
+          <p className="page-subtitle">Review proposals and choose who gets the work.</p>
         </div>
         <button
           onClick={() => navigate('/jobs/create')}
-          className="btn btn-dark fw-medium"
+          className="btn btn-dark rounded-pill fw-medium px-4"
           style={{ backgroundColor: '#FF5A1E', borderColor: '#FF5A1E' }}
         >
           <i className="bi bi-plus-circle me-1"></i> Post a Job
@@ -106,7 +106,7 @@ function MyJobsList() {
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
