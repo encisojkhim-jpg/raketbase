@@ -108,107 +108,7 @@ export default function Explore() {
 
   return (
     <>
-      {/* Sidebar Component */}
-      <div className="sidebar-wrapper" id="sidebar">
-        <Link to="/" className="sidebar-brand text-decoration-none d-flex align-items-center gap-1" style={{ padding: '10px 0' }}>
-          <img src="/racketbaseSVG.svg" alt="RaketBase Logo" style={{ height: '50px', objectFit: 'contain', marginTop: '-8px' }} />
-          <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '24px', color: '#fff', letterSpacing: '0.5px', display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontWeight: 800 }}>RAKET</span>
-            <span style={{ fontWeight: 400 }}>BASE</span>
-          </div>
-        </Link>
-        <div className="flex-grow-1 overflow-y-auto mt-4">
-          <div className="sidebar-menu-section">
-            <div className="sidebar-menu-title">Menu</div>
-            <ul className="sidebar-menu-list">
-              <li className="sidebar-menu-item">
-                <Link to="/dashboard" className="sidebar-menu-link">
-                  <i className="bi bi-grid-fill"></i>
-                  <span>Dashboard</span>
-                </Link>
-              </li>
-              <li className="sidebar-menu-item">
-                <Link to={`/freelancer/${user.user_id || user.id}`} className="sidebar-menu-link">
-                  <i className="bi bi-person"></i>
-                  <span>My Account</span>
-                </Link>
-              </li>
-            </ul>
-          </div>
-          <div className="sidebar-menu-section">
-            <div className="sidebar-menu-title">Jobs</div>
-            <ul className="sidebar-menu-list">
-              <li className="sidebar-menu-item">
-                <Link to="/explore" className="sidebar-menu-link active">
-                  <i className="bi bi-search"></i>
-                  <span>Explore Jobs</span>
-                </Link>
-              </li>
-              {user.active_role === 'customer' && (
-                <>
-                  <li className="sidebar-menu-item">
-                    <Link to="/my-jobs" className="sidebar-menu-link">
-                      <i className="bi bi-briefcase"></i>
-                      <span>My Postings</span>
-                    </Link>
-                  </li>
-                  <li className="sidebar-menu-item">
-                    <Link to="/jobs/create" className="sidebar-menu-link">
-                      <i className="bi bi-plus-circle"></i>
-                      <span>Post a Job</span>
-                    </Link>
-                  </li>
-                </>
-              )}
-            </ul>
-          </div>
-        </div>
-        <div className="sidebar-profile">
-          <img src={user.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop"} alt="Profile" className="sidebar-profile-img" />
-          <div className="sidebar-profile-info">
-            <div className="sidebar-profile-name">{user.first_name || 'User'} {user.last_name || ''}</div>
-            <div className="sidebar-profile-email">{user.email || 'user@example.com'}</div>
-          </div>
-        </div>
-      </div>
 
-      <div className="main-wrapper">
-        <header className="navbar-custom">
-          <div className="navbar-left">
-            <button className="sidebar-toggle-btn me-2" id="sidebar-toggle">
-              <i className="bi bi-list"></i>
-            </button>
-          </div>
-          <div className="navbar-search-wrapper">
-            <input 
-              type="text" 
-              className="navbar-search-input" 
-              placeholder="Search jobs..." 
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <button className="navbar-search-btn"><i className="bi bi-search"></i></button>
-          </div>
-          <div className="navbar-actions">
-            <button className="navbar-action-btn me-2 d-md-none" onClick={() => setFiltersOpen(!filtersOpen)}>
-              <i className="bi bi-funnel"></i>
-            </button>
-            <div className="dropdown ms-2">
-              <button className="navbar-profile-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                <img src={user.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop"} alt="Profile" className="navbar-profile-img" />
-                <span className="navbar-profile-name d-none d-md-inline">{user.first_name || 'User'}</span>
-                <i className="bi bi-chevron-down navbar-profile-caret"></i>
-              </button>
-              <ul className="dropdown-menu dropdown-menu-end dropdown-menu-profile">
-                <li className="dropdown-header">Welcome !</li>
-                <li><Link className="dropdown-item" to="#"><i className="bi bi-person"></i> My Account</Link></li>
-                <li><Link className="dropdown-item" to="#"><i className="bi bi-gear"></i> Settings</Link></li>
-                <li><hr className="dropdown-divider" /></li>
-                <li><Link className="dropdown-item text-danger" to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><i className="bi bi-box-arrow-right"></i> Logout</Link></li>
-              </ul>
-            </div>
-          </div>
-        </header>
 
         <div className="page-header d-flex justify-content-between align-items-center">
           <div>
@@ -224,7 +124,7 @@ export default function Explore() {
 
         <div className="row g-4 px-3 mb-4">
           <div className="col-xl-9 col-lg-8 order-2 order-lg-1">
-            <div className="d-flex gap-2 overflow-x-auto mb-4 pb-2" style={{ scrollbarWidth: 'none' }}>
+            <div className="d-flex flex-wrap gap-2 mb-4 pb-2">
               {categories.map((c) => {
                 const isActive = activeCategory === c.id;
                 return (
@@ -262,7 +162,7 @@ export default function Explore() {
               <div className="row g-4">
                 {visibleJobs.map((job) => (
                   <div className="col-md-6 col-xl-4" key={job.job_id}>
-                    <JobCard job={job} onOpen={() => navigate(`/explore/${job.job_id}`)} />
+                    <JobCard job={job} onOpen={() => navigate(`/jobs/${job.job_id}`)} />
                   </div>
                 ))}
               </div>
@@ -282,7 +182,7 @@ export default function Explore() {
             )}
           </div>
         </div>
-      </div>
+      
     </>
   );
 }

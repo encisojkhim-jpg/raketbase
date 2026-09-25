@@ -3,8 +3,6 @@
 // (unwithdraw) it — either as-is or with an edited bid/cover letter.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import { ClockIcon } from '../components/Icons';
 import { getMyProposals, withdrawProposal, unwithdrawProposal } from '../services/api';
 
 const FILTERS = [
@@ -16,10 +14,10 @@ const FILTERS = [
 ];
 
 const STATUS_STYLES = {
-  pending: 'bg-surface text-text-secondary border-border',
-  accepted: 'bg-accent/10 text-accent border-accent/30',
-  rejected: 'bg-error/10 text-error border-error/30',
-  withdrawn: 'bg-surface text-text-secondary border-border',
+  pending: 'badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 rounded-pill',
+  accepted: 'badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill',
+  rejected: 'badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill',
+  withdrawn: 'badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill',
 };
 
 export default function MyProposals() {
@@ -29,6 +27,11 @@ export default function MyProposals() {
   const [filter, setFilter] = useState('all');
   const [actioningId, setActioningId] = useState(null);
   const [actionError, setActionError] = useState('');
+
+  const user = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); }
+    catch { return {}; }
+  })();
 
   async function load() {
     setLoading(true);
@@ -82,68 +85,75 @@ export default function MyProposals() {
   const visibleProposals = filter === 'all' ? proposals : proposals.filter((p) => p.status === filter);
 
   return (
-    <div className="min-h-screen bg-bg text-text">
-      <Navbar />
-      <div className="mx-auto max-w-4xl px-5 py-8 md:px-8">
-        <div className="mb-6">
-          <h1 className="font-display text-3xl font-semibold tracking-tight">My Proposals</h1>
-          <p className="mt-1 text-sm text-text-secondary">
-            Track every bid you've sent, and manage the ones still in play.
-          </p>
-        </div>
+    <>
 
-        {/* Status filter tabs */}
-        <div className="mb-6 flex flex-wrap gap-2">
-          {FILTERS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              className={`rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors cursor-pointer ${
-                filter === f.value
-                  ? 'border-accent/40 bg-accent/15 text-accent'
-                  : 'border-border text-text-secondary hover:text-text'
-              }`}
-            >
-              {f.label}
-              <span className="ml-1.5 text-[11px] opacity-70">{counts[f.value]}</span>
-            </button>
-          ))}
-        </div>
 
-        {actionError && (
-          <div className="mb-4 rounded-md border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
-            {actionError}
-          </div>
-        )}
+        {/* Page Content Here */}
+        <div className="row g-4 px-3 mb-4">
+          <div className="col-xl-8 mx-auto">
+            <div className="mb-4">
+              <h1 className="fw-bold fs-3 mb-1">My Proposals</h1>
+              <p className="text-muted small mb-0">
+                Track every bid you've sent, and manage the ones still in play.
+              </p>
+            </div>
 
-        {loading && <StateCard title="Loading your proposals..." />}
+            {/* Status filter tabs */}
+            <div className="d-flex flex-wrap gap-2 mb-4">
+              {FILTERS.map((f) => {
+                const isActive = filter === f.value;
+                return (
+                  <button
+                    key={f.value}
+                    onClick={() => setFilter(f.value)}
+                    className={`btn btn-sm rounded-pill px-3 py-1 ${
+                      isActive ? 'text-white border-0' : 'btn-outline-secondary'
+                    }`}
+                    style={isActive ? { backgroundColor: '#FF5A1E' } : {}}
+                  >
+                    {f.label}
+                    <span className="ms-2 small opacity-75">{counts[f.value]}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-        {!loading && loadError && (
-          <StateCard title="Couldn't load your proposals" body={loadError} action={{ label: 'Try again', onClick: load }} />
-        )}
+            {actionError && (
+              <div className="alert alert-danger py-2 px-3 small rounded-3 mb-4">
+                {actionError}
+              </div>
+            )}
 
-        {!loading && !loadError && visibleProposals.length === 0 && (
-          <StateCard
-            title={filter === 'all' ? 'No proposals yet' : `No ${filter} proposals`}
-            body={filter === 'all' ? 'Browse open jobs and submit your first proposal.' : 'Nothing here right now.'}
-          />
-        )}
+            {loading && <StateCard title="Loading your proposals..." />}
 
-        {!loading && !loadError && visibleProposals.length > 0 && (
-          <div className="space-y-3">
-            {visibleProposals.map((p) => (
-              <ProposalRow
-                key={p.proposal_id}
-                proposal={p}
-                busy={actioningId === p.proposal_id}
-                onWithdraw={() => handleWithdraw(p.proposal_id)}
-                onUnwithdraw={(payload) => handleUnwithdraw(p.proposal_id, payload)}
+            {!loading && loadError && (
+              <StateCard title="Couldn't load your proposals" body={loadError} action={{ label: 'Try again', onClick: load }} />
+            )}
+
+            {!loading && !loadError && visibleProposals.length === 0 && (
+              <StateCard
+                title={filter === 'all' ? 'No proposals yet' : `No ${filter} proposals`}
+                body={filter === 'all' ? 'Browse open jobs and submit your first proposal.' : 'Nothing here right now.'}
               />
-            ))}
+            )}
+
+            {!loading && !loadError && visibleProposals.length > 0 && (
+              <div className="d-flex flex-column gap-3">
+                {visibleProposals.map((p) => (
+                  <ProposalRow
+                    key={p.proposal_id}
+                    proposal={p}
+                    busy={actioningId === p.proposal_id}
+                    onWithdraw={() => handleWithdraw(p.proposal_id)}
+                    onUnwithdraw={(payload) => handleUnwithdraw(p.proposal_id, payload)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      
+    </>
   );
 }
 
@@ -178,127 +188,129 @@ function ProposalRow({ proposal, busy, onWithdraw, onUnwithdraw }) {
   }
 
   return (
-    <div className="rounded-lg border border-border bg-panel p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Link
-              to={`/explore/${proposal.job_id}`}
-              className="font-display text-base font-medium hover:text-accent transition-colors"
-            >
-              {proposal.jobs?.title || 'Job Posting'}
-            </Link>
-            <StatusPill status={proposal.status} />
+    <div className="card rounded-3 shadow-sm border-0">
+      <div className="card-body p-4">
+        <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+          <div>
+            <div className="d-flex align-items-center gap-2 mb-1">
+              <Link
+                to={`/jobs/${proposal.job_id}`}
+                className="fw-bold fs-5 text-dark text-decoration-none"
+              >
+                {proposal.jobs?.title || 'Job Posting'}
+              </Link>
+              <StatusPill status={proposal.status} />
+            </div>
+            <p className="small text-muted mb-0 d-flex align-items-center gap-1">
+              <i className="bi bi-clock"></i>
+              Submitted {formatDate(proposal.submitted_at)}
+            </p>
           </div>
-          <p className="mt-1 flex items-center gap-1.5 text-[12px] text-text-secondary">
-            <ClockIcon className="h-3.5 w-3.5" />
-            Submitted {formatDate(proposal.submitted_at)}
+          <p className="fs-5 fw-bold text-success mb-0">
+            ₱{Number(proposal.bid_amount || 0).toLocaleString()}
           </p>
         </div>
-        <p className="shrink-0 font-sans text-xl font-semibold text-accent">
-          ₱{Number(proposal.bid_amount || 0).toLocaleString()}
-        </p>
+
+        {!editing && (
+          <p className="text-muted small mb-0" style={{ whiteSpace: 'pre-line' }}>
+            {proposal.cover_letter}
+          </p>
+        )}
+
+        {/* Pending: can withdraw */}
+        {proposal.status === 'pending' && (
+          <div className="mt-4 pt-3 border-top d-flex gap-2">
+            <button
+              onClick={onWithdraw}
+              disabled={busy}
+              className="btn btn-outline-danger btn-sm rounded-3 px-3 py-2"
+            >
+              {busy ? 'Working...' : 'Withdraw'}
+            </button>
+          </div>
+        )}
+
+        {/* Withdrawn: can restore as-is, or edit and resubmit */}
+        {proposal.status === 'withdrawn' && !jobIsOpen && (
+          <div className="alert alert-secondary py-2 px-3 small rounded-3 mt-4 mb-0">
+            This job is no longer open, so this proposal can't be restored.
+          </div>
+        )}
+
+        {proposal.status === 'withdrawn' && jobIsOpen && !editing && (
+          <div className="mt-4 pt-3 border-top d-flex gap-2">
+            <button
+              onClick={() => onUnwithdraw()}
+              disabled={busy}
+              className="btn btn-dark btn-sm rounded-3 px-3 py-2 fw-medium"
+            >
+              {busy ? 'Working...' : 'Restore proposal'}
+            </button>
+            <button
+              onClick={startEdit}
+              disabled={busy}
+              className="btn btn-outline-dark btn-sm rounded-3 px-3 py-2 fw-medium"
+            >
+              Edit &amp; resubmit
+            </button>
+          </div>
+        )}
+
+        {proposal.status === 'withdrawn' && jobIsOpen && editing && (
+          <div className="mt-4 pt-3 border-top">
+            <div className="mb-3">
+              <label className="form-label small fw-medium text-muted mb-1">
+                Your bid (₱)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={bidAmount}
+                onChange={(e) => setBidAmount(e.target.value)}
+                className="form-control form-control-sm rounded-3"
+              />
+            </div>
+            <div className="mb-3">
+              <label className="form-label small fw-medium text-muted mb-1">
+                Cover letter
+              </label>
+              <textarea
+                value={coverLetter}
+                onChange={(e) => setCoverLetter(e.target.value)}
+                rows={5}
+                className="form-control form-control-sm rounded-3"
+                style={{ resize: 'none' }}
+              />
+            </div>
+            {editError && <p className="text-danger small mb-3">{editError}</p>}
+            <div className="d-flex gap-2">
+              <button
+                onClick={handleResubmit}
+                disabled={busy}
+                className="btn btn-dark btn-sm rounded-3 px-3 py-2 fw-medium"
+              >
+                {busy ? 'Working...' : 'Resubmit'}
+              </button>
+              <button
+                onClick={() => setEditing(false)}
+                disabled={busy}
+                className="btn btn-outline-secondary btn-sm rounded-3 px-3 py-2 fw-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-
-      {!editing && (
-        <p className="mt-4 whitespace-pre-line text-[14px] leading-relaxed text-text-secondary">
-          {proposal.cover_letter}
-        </p>
-      )}
-
-      {/* Pending: can withdraw */}
-      {proposal.status === 'pending' && (
-        <div className="mt-4 flex gap-2.5 border-t border-border pt-4">
-          <button
-            onClick={onWithdraw}
-            disabled={busy}
-            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-error/40 hover:text-error disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {busy ? 'Working...' : 'Withdraw'}
-          </button>
-        </div>
-      )}
-
-      {/* Withdrawn: can restore as-is, or edit and resubmit */}
-      {proposal.status === 'withdrawn' && !jobIsOpen && (
-        <div className="mt-4 rounded-md border border-border bg-surface p-3 text-[13px] text-text-secondary">
-          This job is no longer open, so this proposal can't be restored.
-        </div>
-      )}
-
-      {proposal.status === 'withdrawn' && jobIsOpen && !editing && (
-        <div className="mt-4 flex gap-2.5 border-t border-border pt-4">
-          <button
-            onClick={() => onUnwithdraw()}
-            disabled={busy}
-            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {busy ? 'Working...' : 'Restore proposal'}
-          </button>
-          <button
-            onClick={startEdit}
-            disabled={busy}
-            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          >
-            Edit &amp; resubmit
-          </button>
-        </div>
-      )}
-
-      {proposal.status === 'withdrawn' && jobIsOpen && editing && (
-        <div className="mt-4 space-y-3 border-t border-border pt-4">
-          <div>
-            <label className="mb-1.5 block text-[13px] font-medium text-text-secondary">
-              Your bid (₱)
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={bidAmount}
-              onChange={(e) => setBidAmount(e.target.value)}
-              className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-[13px] font-medium text-text-secondary">
-              Cover letter
-            </label>
-            <textarea
-              value={coverLetter}
-              onChange={(e) => setCoverLetter(e.target.value)}
-              rows={5}
-              className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-            />
-          </div>
-          {editError && <p className="text-[12px] text-error">{editError}</p>}
-          <div className="flex gap-2.5">
-            <button
-              onClick={handleResubmit}
-              disabled={busy}
-              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover disabled:opacity-50 cursor-pointer"
-            >
-              {busy ? 'Working...' : 'Resubmit'}
-            </button>
-            <button
-              onClick={() => setEditing(false)}
-              disabled={busy}
-              className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text-secondary hover:text-text disabled:opacity-50 cursor-pointer"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 function StatusPill({ status }) {
+  const badgeClass = STATUS_STYLES[status] || STATUS_STYLES.pending;
   return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_STYLES[status] || STATUS_STYLES.pending}`}
-    >
+    <span className={badgeClass}>
       {status}
     </span>
   );
@@ -306,17 +318,19 @@ function StatusPill({ status }) {
 
 function StateCard({ title, body, action }) {
   return (
-    <div className="rounded-lg border border-border bg-panel p-10 text-center">
-      <p className="font-display text-lg font-medium">{title}</p>
-      {body && <p className="mt-1 text-sm text-text-secondary">{body}</p>}
-      {action && (
-        <button
-          onClick={action.onClick}
-          className="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium hover:border-accent/40 cursor-pointer"
-        >
-          {action.label}
-        </button>
-      )}
+    <div className="card rounded-3 border-0 shadow-sm text-center">
+      <div className="card-body p-5">
+        <p className="fs-5 fw-medium mb-1">{title}</p>
+        {body && <p className="text-muted small mb-0">{body}</p>}
+        {action && (
+          <button
+            onClick={action.onClick}
+            className="btn btn-outline-dark btn-sm rounded-3 mt-3 px-4"
+          >
+            {action.label}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

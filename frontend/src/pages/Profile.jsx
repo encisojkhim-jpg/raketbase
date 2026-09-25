@@ -1,450 +1,702 @@
-// Profile.jsx — Profile editor for both modes.
-// The left card shows the profile photo with the person's name underneath; the form
-// on the right depends on the active mode:
-//   Freelancer mode: bio, skills, portfolio URL (shown to clients on proposal cards).
-//   Client mode:     company name and "about you" (client_bio).
-// Each mode has its own photo and bio. The photo uploads immediately when picked
-// (separate from the "Save profile" button) and is stored in Supabase Storage via the backend.
-import { useEffect, useRef, useState } from 'react';
-import Navbar from '../components/Navbar';
-import { CloseIcon } from '../components/Icons';
-import { getProfile, updateProfile, uploadAvatar, removeAvatar, getUserReviews } from '../services/api';
-import RatingsPanel from '../components/RatingsPanel';
-import AveragePriceCard from '../components/AveragePriceCard';
-import { RatingBadge } from '../components/StarRating';
-import { useCurrentUser, setCurrentUser } from '../utils/currentUser';
-import { showToast } from '../utils/toast';
-import { setUnsaved } from '../utils/unsavedChanges';
+// FreelancerProfileView.jsx — Dynamic Freelancer Profile with Edit Mode
+// Features:
+// 1. Fetches real profile data from /api/v1/users/:id
+// 2. Edit mode for own profile (inline toggle)
+// 3. Avatar upload via Supabase Storage
+// 4. Add/remove experience & education entries
+// 5. Spark Admin layout (sidebar + navbar)
+import { useState, useEffect, useRef } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { getFreelancerProfile, updateProfile } from '../services/api';
+import { supabase } from '../config/supabaseClient';
 
-const BIO_MAX = 500;
-const COMPANY_MAX = 100;
-const UNSAVED_KEY = 'profile-editor';
-const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // keep in sync with backend/src/middleware/upload.js
-const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop';
 
 export default function Profile() {
-  const currentUser = useCurrentUser();
-  const mode = currentUser.active_role === 'freelancer' ? 'freelancer' : 'customer';
-  // Keyed by mode so switching Client <-> Freelancer remounts the editor, which reloads
-  // that mode's photo and fields (and drops any half-edited state from the other mode).
-  return <ProfileEditor key={mode} mode={mode} />;
-}
-
-function ProfileEditor({ mode }) {
-  const isFreelancer = mode === 'freelancer';
-  // users column holding this mode's photo (the server picks the same one on upload).
-  const photoField = isFreelancer ? 'avatar_url' : 'client_avatar_url';
-  const currentUser = useCurrentUser();
-
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-
-  // `bio` holds the freelancer bio in Freelancer mode and the client bio in Client mode.
-  const [bio, setBio] = useState('');
-  const [skills, setSkills] = useState([]);
-  const [skillInput, setSkillInput] = useState('');
-  const [portfolioUrl, setPortfolioUrl] = useState('');
-  const [companyName, setCompanyName] = useState('');
-
-  // Profile photo (saved instantly on upload — not part of the form's dirty state).
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [avatarBusy, setAvatarBusy] = useState(false);
-  const [avatarError, setAvatarError] = useState('');
-  const [avatarBroken, setAvatarBroken] = useState(false);
-  const [profileName, setProfileName] = useState('');
-  // Ratings other people have given this user in the current mode (null until loaded).
-  const [ratings, setRatings] = useState(null);
+  const { id } = useParams();
+  const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  // Snapshot of last-saved values, used to detect unsaved changes.
-  const [saved, setSaved] = useState({ bio: '', skills: [], portfolioUrl: '', companyName: '' });
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState('about');
+
+  // Current logged-in user
+  const user = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); }
+    catch { return {}; }
+  })();
+
+  const isOwnProfile = user.user_id === id;
+
+  // Load profile data
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       setLoadError(null);
       try {
-        // Ratings are a bonus: if they fail to load the rest of the profile still shows.
-        const [res, ratingsRes] = await Promise.all([
-          getProfile(),
-          currentUser.user_id
-            ? getUserReviews(currentUser.user_id, isFreelancer ? 'freelancer' : 'customer').catch(() => null)
-            : Promise.resolve(null),
-        ]);
-        const profile = res.data || {};
-        if (cancelled) return;
-        setRatings(ratingsRes?.data || null);
-        const nextBio = (isFreelancer ? profile.bio : profile.client_bio) || '';
-        const nextSkills = Array.isArray(profile.skills) ? profile.skills : [];
-        const nextPortfolio = profile.portfolio_url || '';
-        const nextCompany = profile.company_name || '';
-        setBio(nextBio);
-        setSkills(nextSkills);
-        setPortfolioUrl(nextPortfolio);
-        setCompanyName(nextCompany);
-        setAvatarUrl((isFreelancer ? profile.avatar_url : profile.client_avatar_url) || '');
-        setProfileName([profile.first_name, profile.last_name].filter(Boolean).join(' '));
-        setSaved({
-          bio: nextBio,
-          skills: nextSkills,
-          portfolioUrl: nextPortfolio,
-          companyName: nextCompany,
-        });
+        const res = await getFreelancerProfile(id);
+        if (!cancelled && res.success) {
+          setProfile(res.data);
+          setForm(buildFormFromProfile(res.data));
+        }
       } catch (err) {
-        if (!cancelled) setLoadError(err.message || 'Could not load your profile.');
+        if (!cancelled) setLoadError(err.message || 'Could not load profile.');
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     load();
-    return () => {
-      cancelled = true;
+    return () => { cancelled = true; };
+  }, [id]);
+
+  function buildFormFromProfile(p) {
+    return {
+      first_name: p.first_name || '',
+      last_name: p.last_name || '',
+      title: p.title || '',
+      phone: p.phone || '',
+      location: p.location || '',
+      hourly_rate: p.hourly_rate || '',
+      bio: p.bio || '',
+      skills: Array.isArray(p.skills) ? p.skills.join(', ') : (p.skills || ''),
+      linkedin_url: p.linkedin_url || '',
+      github_url: p.github_url || '',
+      website_url: p.website_url || '',
+      experience: Array.isArray(p.experience) ? p.experience : [],
+      education: Array.isArray(p.education) ? p.education : [],
     };
-  }, [isFreelancer, currentUser.user_id]);
-
-  // Only the fields shown for the current mode count toward "unsaved changes".
-  const isDirty = isFreelancer
-    ? bio !== saved.bio ||
-      portfolioUrl !== saved.portfolioUrl ||
-      JSON.stringify(skills) !== JSON.stringify(saved.skills)
-    : bio !== saved.bio || companyName !== saved.companyName;
-
-  useEffect(() => {
-    setUnsaved(UNSAVED_KEY, isDirty);
-    return () => setUnsaved(UNSAVED_KEY, false);
-  }, [isDirty]);
-
-  function addSkill(raw) {
-    const value = raw.trim();
-    if (!value) return;
-    setSkills((prev) => (prev.includes(value) ? prev : [...prev, value]));
-    setSkillInput('');
   }
 
-  function removeSkill(value) {
-    setSkills((prev) => prev.filter((s) => s !== value));
+  function handleChange(field, value) {
+    setForm(prev => ({ ...prev, [field]: value }));
   }
 
-  function handleSkillKeyDown(e) {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      addSkill(skillInput);
-    } else if (e.key === 'Backspace' && !skillInput && skills.length > 0) {
-      // Quick-remove the last chip when backspacing on an empty input.
-      setSkills((prev) => prev.slice(0, -1));
-    }
+  // Experience helpers
+  function addExperience() {
+    setForm(prev => ({
+      ...prev,
+      experience: [...prev.experience, { jobTitle: '', company: '', startDate: '', endDate: '', description: '' }],
+    }));
+  }
+  function updateExperience(index, field, value) {
+    setForm(prev => {
+      const updated = [...prev.experience];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, experience: updated };
+    });
+  }
+  function removeExperience(index) {
+    setForm(prev => ({
+      ...prev,
+      experience: prev.experience.filter((_, i) => i !== index),
+    }));
   }
 
-  async function handleAvatarChange(e) {
+  // Education helpers
+  function addEducation() {
+    setForm(prev => ({
+      ...prev,
+      education: [...prev.education, { degree: '', institution: '', year: '' }],
+    }));
+  }
+  function updateEducation(index, field, value) {
+    setForm(prev => {
+      const updated = [...prev.education];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, education: updated };
+    });
+  }
+  function removeEducation(index) {
+    setForm(prev => ({
+      ...prev,
+      education: prev.education.filter((_, i) => i !== index),
+    }));
+  }
+
+  // Avatar upload via backend proxy to bypass RLS
+  async function handleAvatarUpload(e) {
     const file = e.target.files?.[0];
-    // Reset so picking the same file again still fires onChange.
-    e.target.value = '';
     if (!file) return;
 
-    setAvatarError('');
-    if (!AVATAR_TYPES.includes(file.type)) {
-      setAvatarError('Please choose a JPG, PNG, or WebP image.');
-      return;
-    }
-    if (file.size > AVATAR_MAX_BYTES) {
-      setAvatarError('Image must be 2 MB or smaller.');
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+      setSaveMsg({ type: 'error', text: 'Image must be under 2MB.' });
       return;
     }
 
-    setAvatarBusy(true);
+    setUploading(true);
+    setSaveMsg(null);
     try {
-      const res = await uploadAvatar(file);
-      const nextUrl = res.data?.avatar_url || '';
-      setAvatarUrl(nextUrl);
-      setAvatarBroken(false);
-      // Keep the shared user (localStorage) in sync so the Navbar avatar updates immediately.
-      // The server says which column it updated, so the right mode's photo is refreshed.
-      setCurrentUser({ ...currentUser, [res.data?.field || photoField]: nextUrl });
-      showToast('Profile photo updated');
+      const ext = file.name.split('.').pop().toLowerCase();
+      
+      // Convert file to base64 string
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const base64String = reader.result;
+          
+          // Send to backend
+          const res = await updateProfile({
+            avatar_base64: base64String,
+            avatar_ext: ext
+          });
+
+          // Refresh the profile page data
+          const refreshed = await getFreelancerProfile(id);
+          if (refreshed.success) {
+            setProfile(refreshed.data);
+            setForm(buildFormFromProfile(refreshed.data));
+            
+            // Also update localStorage user info to show avatar in navbar
+            const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+            localStorage.setItem('user', JSON.stringify({
+              ...storedUser,
+              avatar_url: refreshed.data.avatar_url
+            }));
+            
+            // Force reload window to update navbar instantly without React context
+            window.location.reload();
+          }
+        } catch (err) {
+          console.error('Avatar upload error:', err);
+          setSaveMsg({ type: 'error', text: err.message || 'Failed to upload avatar.' });
+          setUploading(false);
+        }
+      };
+      reader.readAsDataURL(file);
     } catch (err) {
-      setAvatarError(err.message || 'Could not upload your photo. Please try again.');
-    } finally {
-      setAvatarBusy(false);
+      console.error('File read error:', err);
+      setSaveMsg({ type: 'error', text: 'Error reading file.' });
+      setUploading(false);
     }
   }
 
-  async function handleAvatarRemove() {
-    setAvatarError('');
-    setAvatarBusy(true);
-    try {
-      const res = await removeAvatar();
-      setAvatarUrl('');
-      setCurrentUser({ ...currentUser, [res.data?.field || photoField]: null });
-      showToast('Profile photo removed');
-    } catch (err) {
-      setAvatarError(err.message || 'Could not remove your photo. Please try again.');
-    } finally {
-      setAvatarBusy(false);
-    }
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (bio.length > BIO_MAX) {
-      setSaveError(`${isFreelancer ? 'Bio' : 'About you'} must be ${BIO_MAX} characters or less.`);
-      return;
-    }
-    if (!isFreelancer && companyName.length > COMPANY_MAX) {
-      setSaveError(`Company name must be ${COMPANY_MAX} characters or less.`);
-      return;
-    }
-
+  // Save profile
+  async function handleSave() {
     setSaving(true);
-    setSaveError('');
+    setSaveMsg(null);
     try {
-      // Each mode only sends its own fields, so saving here never overwrites the other mode's data.
-      const payload = isFreelancer
-        ? { bio: bio.trim(), skills, portfolio_url: portfolioUrl.trim() }
-        : { client_bio: bio.trim(), company_name: companyName.trim() };
-      await updateProfile(payload);
+      const payload = {
+        first_name: form.first_name,
+        last_name: form.last_name,
+        title: form.title,
+        phone: form.phone,
+        location: form.location,
+        hourly_rate: form.hourly_rate ? Number(form.hourly_rate) : null,
+        bio: form.bio,
+        skills: form.skills.split(',').map(s => s.trim()).filter(Boolean),
+        linkedin_url: form.linkedin_url,
+        github_url: form.github_url,
+        website_url: form.website_url,
+        experience: form.experience,
+        education: form.education,
+      };
 
-      // Keep the shared user object (localStorage) in sync so the Navbar,
-      // proposal-gate nudge, etc. all see the change immediately.
-      setCurrentUser({ ...currentUser, ...payload });
+      const res = await updateProfile(payload);
+      // Refresh profile data
+      const refreshed = await getFreelancerProfile(id);
+      if (refreshed.success) {
+        setProfile(refreshed.data);
+        setForm(buildFormFromProfile(refreshed.data));
+      }
+      // Also update localStorage user info
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      localStorage.setItem('user', JSON.stringify({
+        ...storedUser,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
+      }));
 
-      setSaved({
-        bio: bio.trim(),
-        skills,
-        portfolioUrl: portfolioUrl.trim(),
-        companyName: companyName.trim(),
-      });
-      showToast('Profile updated');
+      setSaveMsg({ type: 'success', text: 'Profile saved successfully!' });
+      setEditing(false);
     } catch (err) {
-      setSaveError(err.message || 'Could not save your profile. Please try again.');
+      setSaveMsg({ type: 'error', text: err.message || 'Failed to save profile.' });
     } finally {
       setSaving(false);
     }
   }
 
-  const displayName =
-    profileName ||
-    [currentUser.first_name, currentUser.last_name].filter(Boolean).join(' ') ||
-    currentUser.email?.split('@')[0] ||
-    (isFreelancer ? 'Freelancer' : 'Client');
-  const initial = displayName[0]?.toUpperCase() || 'U';
-  const showAvatarImage = Boolean(avatarUrl) && !avatarBroken;
+  function cancelEdit() {
+    if (profile) setForm(buildFormFromProfile(profile));
+    setEditing(false);
+    setSaveMsg(null);
+  }
+
+  // ── Derived display values ──
+  const f = profile || {};
+  const displayName = `${f.first_name || ''} ${f.last_name || ''}`.trim() || 'Unnamed User';
+  const avatarUrl = f.avatar_url || DEFAULT_AVATAR;
+  const skillsArray = Array.isArray(f.skills) ? f.skills : (f.skills ? String(f.skills).split(',').map(s => s.trim()) : []);
+  const experienceArr = Array.isArray(f.experience) ? f.experience : [];
+  const educationArr = Array.isArray(f.education) ? f.education : [];
 
   return (
-    <div className="min-h-screen bg-bg text-text">
-      <Navbar />
-      <div className="mx-auto max-w-4xl px-5 py-8 md:px-8">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Your profile</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          {isFreelancer
-            ? 'Clients see this on every proposal you send — a filled-out profile helps them say yes.'
-            : 'Add a photo and a few details about you or your business. Your photo shows next to your job postings.'}
-        </p>
+    <>
 
-        {loading && <p className="mt-8 text-text-secondary">Loading your profile...</p>}
+
+        <div className="page-header d-flex justify-content-between align-items-center">
+          <div>
+            <h1 className="page-title">Freelancer Profile</h1>
+            <p className="page-subtitle">View skills, experience, and portfolio details.</p>
+          </div>
+          {isOwnProfile && !editing && (
+            <button className="btn btn-dark rounded-pill px-4 fw-medium" onClick={() => setEditing(true)}>
+              <i className="bi bi-pencil-square me-2"></i>Edit Profile
+            </button>
+          )}
+          {editing && (
+            <div className="d-flex gap-2">
+              <button className="btn btn-outline-secondary rounded-pill px-4 fw-medium" onClick={cancelEdit} disabled={saving}>Cancel</button>
+              <button className="btn btn-success rounded-pill px-4 fw-medium text-white" onClick={handleSave} disabled={saving}>
+                {saving ? <><span className="spinner-border spinner-border-sm me-2"></span>Saving...</> : <><i className="bi bi-check-lg me-1"></i>Save Profile</>}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Save / Error Messages */}
+        {saveMsg && (
+          <div className={`alert ${saveMsg.type === 'success' ? 'alert-success' : 'alert-danger'} mx-3 alert-dismissible fade show`} role="alert">
+            <i className={`bi ${saveMsg.type === 'success' ? 'bi-check-circle' : 'bi-exclamation-circle'} me-2`}></i>
+            {saveMsg.text}
+            <button type="button" className="btn-close" onClick={() => setSaveMsg(null)}></button>
+          </div>
+        )}
+
+        {/* Loading / Error States */}
+        {loading && (
+          <div className="text-center py-5">
+            <div className="spinner-border text-dark" role="status"><span className="visually-hidden">Loading...</span></div>
+            <p className="text-muted mt-3">Loading profile...</p>
+          </div>
+        )}
 
         {!loading && loadError && (
-          <div className="mt-8 rounded-lg border border-border bg-panel p-10 text-center">
-            <p className="font-display text-lg font-medium">Couldn't load your profile</p>
-            <p className="mt-1 text-sm text-text-secondary">{loadError}</p>
+          <div className="card text-center py-5 mx-3 border">
+            <div className="card-body">
+              <h5 className="fw-medium text-dark">Couldn't load this profile</h5>
+              <p className="text-muted">{loadError}</p>
+              <button className="btn btn-outline-dark rounded-pill px-4 mt-2" onClick={() => window.location.reload()}>Try again</button>
+            </div>
           </div>
         )}
 
-        {!loading && !loadError && (
-          <div className="mt-8 grid gap-6 md:grid-cols-[260px_1fr] md:items-start">
-            {/* Left column: profile photo card, with the average price/budget card just below it */}
-            <div className="space-y-4 md:sticky md:top-24">
-            <aside className="rounded-lg border border-border bg-panel p-6 text-center">
-              <div className="relative mx-auto h-40 w-40">
-                {showAvatarImage ? (
-                  <img
-                    src={avatarUrl}
-                    alt={`${displayName}'s profile photo`}
-                    onError={() => setAvatarBroken(true)}
-                    className="h-full w-full rounded-full border border-border object-cover"
-                  />
-                ) : (
-                  <div
-                    aria-label="No profile photo yet"
-                    className="flex h-full w-full items-center justify-center rounded-full bg-accent font-display text-6xl font-semibold text-[#1A1305]"
-                  >
-                    {initial}
-                  </div>
-                )}
-                {avatarBusy && (
-                  <div className="absolute inset-0 flex items-center justify-center rounded-full bg-bg/70 text-[12px] font-medium text-text">
-                    Working...
-                  </div>
-                )}
-              </div>
+        {/* ── Profile Layout ───────────────────────────────────────── */}
+        {!loading && !loadError && profile && (
+          <div className="row g-4 px-3 mb-4">
 
-              <p className="mt-4 break-words font-display text-lg font-semibold">{displayName}</p>
-              <p className="mt-0.5 text-[12px] uppercase tracking-wider text-text-secondary">
-                {isFreelancer ? 'Freelancer profile' : 'Client profile'}
-              </p>
-              <RatingBadge rating={ratings?.summary} className="mt-2 justify-center" />
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleAvatarChange}
-                className="hidden"
-              />
-              <div className="mt-4 flex flex-col items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={avatarBusy}
-                  className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  {showAvatarImage ? 'Change photo' : 'Upload photo'}
-                </button>
-                {showAvatarImage && (
-                  <button
-                    type="button"
-                    onClick={handleAvatarRemove}
-                    disabled={avatarBusy}
-                    className="text-[13px] font-medium text-text-secondary transition-colors hover:text-error disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    Remove photo
-                  </button>
-                )}
-              </div>
-              <p className="mt-3 text-[12px] text-text-secondary">JPG, PNG or WebP, up to 2 MB.</p>
-              {avatarError && (
-                <p role="alert" className="mt-2 text-[13px] text-error">
-                  {avatarError}
-                </p>
-              )}
-            </aside>
-
-            {ratings && <AveragePriceCard role={mode} price={ratings.price} />}
-            </div>
-
-            {/* Right column: the profile form for the current mode */}
-            <div className="space-y-10">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Company name (client mode only) */}
-              {!isFreelancer && (
-                <div>
-                  <label className="mb-1.5 block text-[13px] font-medium text-text-secondary">
-                    Company name <span className="font-normal">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    maxLength={COMPANY_MAX}
-                    placeholder="e.g. Acme Studio"
-                    className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-                  />
-                </div>
-              )}
-
-              {/* Bio (freelancer bio, or "About you" for clients) */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <label className="text-[13px] font-medium text-text-secondary">
-                    {isFreelancer ? 'Bio' : 'About you'}
-                  </label>
-                  <span
-                    className={`text-[12px] ${bio.length > BIO_MAX ? 'text-error' : 'text-text-secondary'}`}
-                  >
-                    {bio.length}/{BIO_MAX}
-                  </span>
-                </div>
-                <textarea
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  rows={5}
-                  className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-                  placeholder={
-                    isFreelancer
-                      ? 'Tell clients what you do, your experience, and what makes you a good fit for their projects.'
-                      : 'Describe yourself or your business, and the kinds of projects you usually post.'
-                  }
-                />
-              </div>
-
-              {/* Skills + portfolio (freelancer mode only) */}
-              {isFreelancer && (
-                <>
-                  <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-text-secondary">
-                      Skills
-                    </label>
-                    <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-2 focus-within:border-accent">
-                      {skills.map((skill) => (
-                        <span
-                          key={skill}
-                          className="flex items-center gap-1.5 rounded-full bg-accent/15 border border-accent/40 px-2.5 py-1 text-[12px] font-medium text-accent"
-                        >
-                          {skill}
-                          <button
-                            type="button"
-                            onClick={() => removeSkill(skill)}
-                            aria-label={`Remove ${skill}`}
-                            className="cursor-pointer text-accent/80 hover:text-accent"
-                          >
-                            <CloseIcon className="h-3 w-3" />
-                          </button>
-                        </span>
-                      ))}
-                      <input
-                        type="text"
-                        value={skillInput}
-                        onChange={(e) => setSkillInput(e.target.value)}
-                        onKeyDown={handleSkillKeyDown}
-                        onBlur={() => addSkill(skillInput)}
-                        placeholder={skills.length === 0 ? 'e.g. Logo Design, React, Copywriting' : 'Add another...'}
-                        className="min-w-[140px] flex-1 bg-transparent px-1 py-1 text-sm outline-none placeholder-text-secondary"
-                      />
-                    </div>
-                    <p className="mt-1.5 text-[12px] text-text-secondary">
-                      Press Enter or comma to add a skill.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-text-secondary">
-                      Portfolio URL
-                    </label>
-                    <input
-                      type="url"
-                      value={portfolioUrl}
-                      onChange={(e) => setPortfolioUrl(e.target.value)}
-                      placeholder="https://your-portfolio.com"
-                      className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+            {/* ── Left Column ───────────────────────────────────────── */}
+            <div className="col-12 col-md-4">
+              <div className="card shadow-sm border-0 mb-4">
+                <div className="card-body text-center p-4">
+                  {/* Avatar */}
+                  <div className="position-relative d-inline-block mb-3">
+                    <img
+                      src={avatarUrl}
+                      alt={displayName}
+                      className="rounded-circle border border-3 border-light shadow-sm"
+                      style={{ width: '140px', height: '140px', objectFit: 'cover' }}
                     />
+                    {isOwnProfile && (
+                      <>
+                        <input type="file" ref={fileInputRef} className="d-none" accept="image/png,image/jpeg,image/webp" onChange={handleAvatarUpload} />
+                        <button
+                          className="btn btn-dark btn-sm rounded-circle position-absolute bottom-0 end-0 d-flex align-items-center justify-content-center"
+                          style={{ width: '36px', height: '36px' }}
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploading}
+                          title="Change photo"
+                        >
+                          {uploading ? <span className="spinner-border spinner-border-sm"></span> : <i className="bi bi-camera-fill"></i>}
+                        </button>
+                      </>
+                    )}
                   </div>
-                </>
+
+                  {/* Name & Title */}
+                  {editing ? (
+                    <div className="text-start mb-3">
+                      <div className="row g-2 mb-2">
+                        <div className="col-6">
+                          <label className="form-label small fw-medium">First Name</label>
+                          <input type="text" className="form-control bg-light" value={form.first_name} onChange={(e) => handleChange('first_name', e.target.value)} />
+                        </div>
+                        <div className="col-6">
+                          <label className="form-label small fw-medium">Last Name</label>
+                          <input type="text" className="form-control bg-light" value={form.last_name} onChange={(e) => handleChange('last_name', e.target.value)} />
+                        </div>
+                      </div>
+                      <label className="form-label small fw-medium">Professional Title</label>
+                      <input type="text" className="form-control bg-light" placeholder="e.g. Full Stack Developer" value={form.title} onChange={(e) => handleChange('title', e.target.value)} />
+                    </div>
+                  ) : (
+                    <>
+                      <h4 className="fw-bold text-dark mb-1">{displayName}</h4>
+                      <p className="text-muted mb-2">{f.title || 'No title set'}</p>
+                    </>
+                  )}
+
+                  {/* Location */}
+                  {editing ? (
+                    <div className="text-start mb-3">
+                      <label className="form-label small fw-medium">Location</label>
+                      <input type="text" className="form-control bg-light" placeholder="e.g. Manila, Philippines" value={form.location} onChange={(e) => handleChange('location', e.target.value)} />
+                    </div>
+                  ) : (
+                    f.location && <p className="text-muted small mb-3"><i className="bi bi-geo-alt-fill me-1"></i>{f.location}</p>
+                  )}
+
+                  {/* Stats Row */}
+                  <div className="row text-center mb-3 g-2">
+                    <div className="col-4">
+                      <div className="bg-light rounded-3 p-2">
+                        <div className="fw-bold text-dark fs-5">{f.completed_jobs || 0}</div>
+                        <div className="text-muted" style={{ fontSize: '0.7rem' }}>Jobs Done</div>
+                      </div>
+                    </div>
+                    <div className="col-4">
+                      <div className="bg-light rounded-3 p-2">
+                        <div className="fw-bold text-dark fs-5 d-flex align-items-center justify-content-center gap-1">
+                          <i className="bi bi-star-fill text-warning" style={{ fontSize: '0.85rem' }}></i>
+                          {f.rating || '—'}
+                        </div>
+                        <div className="text-muted" style={{ fontSize: '0.7rem' }}>Rating</div>
+                      </div>
+                    </div>
+                    <div className="col-4">
+                      <div className="bg-light rounded-3 p-2">
+                        {editing ? (
+                          <input type="number" className="form-control form-control-sm bg-white text-center fw-bold" value={form.hourly_rate} onChange={(e) => handleChange('hourly_rate', e.target.value)} placeholder="0" />
+                        ) : (
+                          <div className="fw-bold text-success fs-6">₱{f.hourly_rate ? Number(f.hourly_rate).toLocaleString() : '—'}</div>
+                        )}
+                        <div className="text-muted" style={{ fontSize: '0.7rem' }}>/hour</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <hr className="my-3" />
+
+                  {/* Contact Info */}
+                  <div className="text-start">
+                    <h6 className="fw-bold text-dark mb-3"><i className="bi bi-person-lines-fill me-2 text-muted"></i>Contact Info</h6>
+                    {editing ? (
+                      <div className="mb-3">
+                        <label className="form-label small fw-medium">Phone</label>
+                        <input type="text" className="form-control bg-light" placeholder="+63 917 123 4567" value={form.phone} onChange={(e) => handleChange('phone', e.target.value)} />
+                      </div>
+                    ) : (
+                      <>
+                        {f.phone && (
+                          <div className="d-flex align-items-center mb-2">
+                            <i className="bi bi-telephone-fill text-muted me-3" style={{ width: '18px' }}></i>
+                            <span className="small text-dark">{f.phone}</span>
+                          </div>
+                        )}
+                        <div className="d-flex align-items-center mb-3">
+                          <i className="bi bi-envelope-fill text-muted me-3" style={{ width: '18px' }}></i>
+                          <span className="small text-dark">{f.email}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <hr className="my-3" />
+
+                  {/* Social Links */}
+                  <div className="text-start">
+                    <h6 className="fw-bold text-dark mb-3"><i className="bi bi-link-45deg me-2 text-muted"></i>Social Links</h6>
+                    {editing ? (
+                      <div className="d-flex flex-column gap-2 mb-3">
+                        <div className="input-group input-group-sm">
+                          <span className="input-group-text bg-light"><i className="bi bi-linkedin text-primary"></i></span>
+                          <input type="url" className="form-control bg-light" placeholder="LinkedIn URL" value={form.linkedin_url} onChange={(e) => handleChange('linkedin_url', e.target.value)} />
+                        </div>
+                        <div className="input-group input-group-sm">
+                          <span className="input-group-text bg-light"><i className="bi bi-github text-dark"></i></span>
+                          <input type="url" className="form-control bg-light" placeholder="GitHub URL" value={form.github_url} onChange={(e) => handleChange('github_url', e.target.value)} />
+                        </div>
+                        <div className="input-group input-group-sm">
+                          <span className="input-group-text bg-light"><i className="bi bi-globe2" style={{ color: '#FF5A1E' }}></i></span>
+                          <input type="url" className="form-control bg-light" placeholder="Website URL" value={form.website_url} onChange={(e) => handleChange('website_url', e.target.value)} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="d-flex gap-3 justify-content-start">
+                        {f.linkedin_url && (
+                          <a href={f.linkedin_url} target="_blank" rel="noopener noreferrer" className="btn btn-light border rounded-circle d-flex align-items-center justify-content-center" style={{ width: '42px', height: '42px' }} title="LinkedIn">
+                            <i className="bi bi-linkedin text-primary fs-5"></i>
+                          </a>
+                        )}
+                        {f.github_url && (
+                          <a href={f.github_url} target="_blank" rel="noopener noreferrer" className="btn btn-light border rounded-circle d-flex align-items-center justify-content-center" style={{ width: '42px', height: '42px' }} title="GitHub">
+                            <i className="bi bi-github text-dark fs-5"></i>
+                          </a>
+                        )}
+                        {f.website_url && (
+                          <a href={f.website_url} target="_blank" rel="noopener noreferrer" className="btn btn-light border rounded-circle d-flex align-items-center justify-content-center" style={{ width: '42px', height: '42px' }} title="Website">
+                            <i className="bi bi-globe2 fs-5" style={{ color: '#FF5A1E' }}></i>
+                          </a>
+                        )}
+                        {!f.linkedin_url && !f.github_url && !f.website_url && (
+                          <span className="text-muted small">No social links added yet.</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {!isOwnProfile && (
+                    <>
+                      <hr className="my-3" />
+                      <div className="d-grid gap-2">
+                        <button className="btn btn-dark rounded-pill fw-medium py-2"><i className="bi bi-briefcase me-2"></i>Hire Me</button>
+                        <button className="btn btn-outline-dark rounded-pill fw-medium py-2"><i className="bi bi-chat-dots me-2"></i>Message</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Skills Card */}
+              <div className="card shadow-sm border-0">
+                <div className="card-body p-4">
+                  <h6 className="fw-bold text-dark mb-3"><i className="bi bi-tools me-2 text-muted"></i>Skills</h6>
+                  {editing ? (
+                    <div>
+                      <input type="text" className="form-control bg-light" placeholder="React, Node.js, TypeScript (comma separated)" value={form.skills} onChange={(e) => handleChange('skills', e.target.value)} />
+                      <div className="form-text">Separate skills with commas.</div>
+                    </div>
+                  ) : (
+                    <div className="d-flex flex-wrap gap-2">
+                      {skillsArray.length > 0 ? skillsArray.map((skill) => (
+                        <span key={skill} className="badge bg-light text-dark border fw-medium px-3 py-2 rounded-pill" style={{ fontSize: '0.8rem' }}>{skill}</span>
+                      )) : (
+                        <span className="text-muted small">No skills added yet.</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Right Column ──────────────────────────────────────── */}
+            <div className="col-12 col-md-8">
+              {/* Tab Navigation */}
+              <div className="card shadow-sm border-0 mb-4">
+                <div className="card-body p-0">
+                  <ul className="nav nav-pills p-3 gap-2" role="tablist">
+                    {[
+                      { id: 'about', label: 'About Me', icon: 'bi-person' },
+                      { id: 'experience', label: 'Experience', icon: 'bi-building' },
+                      { id: 'education', label: 'Education', icon: 'bi-mortarboard' },
+                    ].map((tab) => (
+                      <li className="nav-item" key={tab.id}>
+                        <button
+                          className={`nav-link rounded-pill px-4 fw-medium ${activeTab === tab.id ? 'active text-white' : 'text-dark'}`}
+                          style={activeTab === tab.id ? { backgroundColor: '#072F1F' } : {}}
+                          onClick={() => setActiveTab(tab.id)}
+                        >
+                          <i className={`bi ${tab.icon} me-2`}></i>{tab.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* ── About Me Tab ──────────────────────────────────── */}
+              {activeTab === 'about' && (
+                <div className="card shadow-sm border-0 mb-4">
+                  <div className="card-header bg-white border-bottom-0 pt-4 px-4 pb-0">
+                    <h5 className="fw-bold text-dark mb-0"><i className="bi bi-person-badge me-2 text-muted"></i>About Me</h5>
+                  </div>
+                  <div className="card-body px-4 pb-4">
+                    {editing ? (
+                      <textarea className="form-control bg-light" rows="8" placeholder="Tell clients about yourself, your experience, and what makes you unique..." value={form.bio} onChange={(e) => handleChange('bio', e.target.value)} />
+                    ) : (
+                      f.bio ? f.bio.split('\n\n').map((p, i) => (
+                        <p key={i} className="text-muted" style={{ lineHeight: '1.8', fontSize: '0.95rem' }}>{p}</p>
+                      )) : (
+                        <p className="text-muted fst-italic">No bio added yet.</p>
+                      )
+                    )}
+                    {!editing && (
+                      <>
+                        <hr className="my-4" />
+                        <div className="row g-3">
+                          <div className="col-sm-6">
+                            <div className="d-flex align-items-center gap-3 bg-light rounded-3 p-3">
+                              <div className="rounded-circle bg-success bg-opacity-10 d-flex align-items-center justify-content-center" style={{ width: '45px', height: '45px', minWidth: '45px' }}>
+                                <i className="bi bi-check-circle-fill text-success"></i>
+                              </div>
+                              <div>
+                                <div className="fw-bold text-dark">{f.completed_jobs || 0} Projects</div>
+                                <div className="text-muted small">Completed successfully</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="col-sm-6">
+                            <div className="d-flex align-items-center gap-3 bg-light rounded-3 p-3">
+                              <div className="rounded-circle bg-warning bg-opacity-10 d-flex align-items-center justify-content-center" style={{ width: '45px', height: '45px', minWidth: '45px' }}>
+                                <i className="bi bi-cash-stack text-warning"></i>
+                              </div>
+                              <div>
+                                <div className="fw-bold text-dark">₱{(f.total_earnings || 0).toLocaleString()}</div>
+                                <div className="text-muted small">Total earnings on RaketBase</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               )}
 
-              {saveError && <p className="text-[13px] text-error">{saveError}</p>}
+              {/* ── Experience Tab ────────────────────────────────── */}
+              {activeTab === 'experience' && (
+                <div className="card shadow-sm border-0 mb-4">
+                  <div className="card-header bg-white border-bottom-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+                    <h5 className="fw-bold text-dark mb-0"><i className="bi bi-building me-2 text-muted"></i>Work Experience</h5>
+                    {editing && (
+                      <button className="btn btn-outline-dark btn-sm rounded-pill px-3" onClick={addExperience}>
+                        <i className="bi bi-plus-lg me-1"></i>Add
+                      </button>
+                    )}
+                  </div>
+                  <div className="card-body px-4 pb-4">
+                    {editing ? (
+                      form.experience.length === 0 ? (
+                        <p className="text-muted text-center py-3">No experience added yet. Click "Add" above to get started.</p>
+                      ) : (
+                        form.experience.map((exp, i) => (
+                          <div key={i} className="border rounded-3 p-3 mb-3 bg-light">
+                            <div className="d-flex justify-content-between align-items-start mb-2">
+                              <span className="badge bg-dark rounded-pill">#{i + 1}</span>
+                              <button className="btn btn-sm btn-outline-danger rounded-pill px-2 py-0" onClick={() => removeExperience(i)}>
+                                <i className="bi bi-trash"></i>
+                              </button>
+                            </div>
+                            <div className="row g-2 mb-2">
+                              <div className="col-sm-6">
+                                <input type="text" className="form-control form-control-sm bg-white" placeholder="Job Title" value={exp.jobTitle || ''} onChange={(e) => updateExperience(i, 'jobTitle', e.target.value)} />
+                              </div>
+                              <div className="col-sm-6">
+                                <input type="text" className="form-control form-control-sm bg-white" placeholder="Company Name" value={exp.company || ''} onChange={(e) => updateExperience(i, 'company', e.target.value)} />
+                              </div>
+                            </div>
+                            <div className="row g-2 mb-2">
+                              <div className="col-sm-6">
+                                <input type="text" className="form-control form-control-sm bg-white" placeholder="Start Date (e.g. Jan 2023)" value={exp.startDate || ''} onChange={(e) => updateExperience(i, 'startDate', e.target.value)} />
+                              </div>
+                              <div className="col-sm-6">
+                                <input type="text" className="form-control form-control-sm bg-white" placeholder="End Date (e.g. Present)" value={exp.endDate || ''} onChange={(e) => updateExperience(i, 'endDate', e.target.value)} />
+                              </div>
+                            </div>
+                            <textarea className="form-control form-control-sm bg-white" rows="2" placeholder="Brief description of responsibilities and achievements" value={exp.description || ''} onChange={(e) => updateExperience(i, 'description', e.target.value)} />
+                          </div>
+                        ))
+                      )
+                    ) : (
+                      experienceArr.length === 0 ? (
+                        <p className="text-muted fst-italic text-center py-3">No work experience added yet.</p>
+                      ) : (
+                        experienceArr.map((exp, i) => (
+                          <div key={i}>
+                            {i > 0 && <hr className="my-4" />}
+                            <div className="d-flex justify-content-between align-items-start flex-wrap mb-2">
+                              <div>
+                                <h6 className="fw-bold text-dark mb-1">{exp.jobTitle}</h6>
+                                <p className="text-muted mb-0 small"><i className="bi bi-building me-1"></i>{exp.company}</p>
+                              </div>
+                              <span className="badge bg-light text-muted border rounded-pill px-3 py-2 fw-medium mt-1" style={{ fontSize: '0.78rem' }}>
+                                <i className="bi bi-calendar3 me-1"></i>{exp.startDate} – {exp.endDate}
+                              </span>
+                            </div>
+                            <p className="text-muted mt-2 mb-0" style={{ lineHeight: '1.7', fontSize: '0.9rem' }}>{exp.description}</p>
+                          </div>
+                        ))
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
 
-              <div className="flex items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={saving || !isDirty}
-                  className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  {saving ? 'Saving...' : 'Save profile'}
-                </button>
-                {isDirty && !saving && (
-                  <span className="text-[12px] text-text-secondary">You have unsaved changes</span>
-                )}
-              </div>
-            </form>
-
-            {/* What other people said about you in this mode (public on your profile) */}
-            {ratings && <RatingsPanel data={ratings} role={mode} />}
+              {/* ── Education Tab ─────────────────────────────────── */}
+              {activeTab === 'education' && (
+                <div className="card shadow-sm border-0 mb-4">
+                  <div className="card-header bg-white border-bottom-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+                    <h5 className="fw-bold text-dark mb-0"><i className="bi bi-mortarboard-fill me-2 text-muted"></i>Education</h5>
+                    {editing && (
+                      <button className="btn btn-outline-dark btn-sm rounded-pill px-3" onClick={addEducation}>
+                        <i className="bi bi-plus-lg me-1"></i>Add
+                      </button>
+                    )}
+                  </div>
+                  <div className="card-body px-4 pb-4">
+                    {editing ? (
+                      form.education.length === 0 ? (
+                        <p className="text-muted text-center py-3">No education added yet. Click "Add" above to get started.</p>
+                      ) : (
+                        form.education.map((edu, i) => (
+                          <div key={i} className="border rounded-3 p-3 mb-3 bg-light">
+                            <div className="d-flex justify-content-between align-items-start mb-2">
+                              <span className="badge bg-dark rounded-pill">#{i + 1}</span>
+                              <button className="btn btn-sm btn-outline-danger rounded-pill px-2 py-0" onClick={() => removeEducation(i)}>
+                                <i className="bi bi-trash"></i>
+                              </button>
+                            </div>
+                            <div className="mb-2">
+                              <input type="text" className="form-control form-control-sm bg-white" placeholder="Degree (e.g. BS Computer Science)" value={edu.degree || ''} onChange={(e) => updateEducation(i, 'degree', e.target.value)} />
+                            </div>
+                            <div className="row g-2">
+                              <div className="col-sm-8">
+                                <input type="text" className="form-control form-control-sm bg-white" placeholder="Institution" value={edu.institution || ''} onChange={(e) => updateEducation(i, 'institution', e.target.value)} />
+                              </div>
+                              <div className="col-sm-4">
+                                <input type="text" className="form-control form-control-sm bg-white" placeholder="Year (e.g. 2019)" value={edu.year || ''} onChange={(e) => updateEducation(i, 'year', e.target.value)} />
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )
+                    ) : (
+                      educationArr.length === 0 ? (
+                        <p className="text-muted fst-italic text-center py-3">No education added yet.</p>
+                      ) : (
+                        educationArr.map((edu, i) => (
+                          <div key={i}>
+                            {i > 0 && <hr className="my-4" />}
+                            <div className="d-flex align-items-start gap-3">
+                              <div className="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: '50px', height: '50px' }}>
+                                <i className="bi bi-mortarboard-fill text-primary fs-5"></i>
+                              </div>
+                              <div>
+                                <h6 className="fw-bold text-dark mb-1">{edu.degree}</h6>
+                                <p className="text-muted mb-0 small"><i className="bi bi-building me-1"></i>{edu.institution}</p>
+                                <p className="text-muted mb-0 small mt-1"><i className="bi bi-calendar3 me-1"></i>{edu.year}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
-      </div>
-    </div>
+      
+    </>
   );
 }

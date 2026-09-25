@@ -3,15 +3,18 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Explore from './pages/Explore';
-import JobDetail from './pages/JobDetail';
-import FreelancerProfile from './pages/FreelancerProfile';
-import FreelancerProfileView from './pages/FreelancerProfileView';
-import ProtectedRoute from './pages/ProtectedRoute';
 import CreateJob from './pages/CreateJob';
+import JobDetail from './pages/JobDetail';
+import Profile from './pages/Profile';
 import ClientJobView from './pages/ClientJobView';
 import DisputeTicket from './pages/DisputeTicket';
-import AdminDashboard from './pages/AdminDashboard';
+import ProtectedRoute from './pages/ProtectedRoute';
 import AdminRoute from './pages/AdminRoute';
+import AdminDashboard from './pages/AdminDashboard';
+import Messages from './pages/Messages';
+import TopUsers from './pages/TopUsers';
+import MyProposals from './pages/MyProposals';
+import Layout from './components/Layout';
 
 function App() {
   return (
@@ -20,22 +23,27 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/jobs" element={<Navigate to="/explore" replace />} />
-
+      
       {/* Protected Routes */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/explore" element={<Explore />} />
-        <Route path="/jobs/create" element={<CreateJob />} />
-        <Route path="/jobs/:id" element={<JobDetail />} />
-        <Route path="/explore/:id" element={<FreelancerProfile />} />
-        <Route path="/freelancer/:id" element={<FreelancerProfileView />} />
-        <Route path="/my-jobs" element={<ClientJobView />} />
-        <Route path="/my-jobs/:id" element={<ClientJobView />} />
-        {/* Part 4: any contract participant can file a dispute */}
-        <Route path="/contracts/:id/dispute" element={<DisputeTicket />} />
+        <Route element={<Layout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/explore" element={<Explore />} />
+          <Route path="/jobs/create" element={<CreateJob />} />
+          <Route path="/jobs/:id" element={<JobDetail />} />
+          <Route path="/my-jobs" element={<ClientJobView />} />
+          <Route path="/my-jobs/:id" element={<ClientJobView />} />
+          <Route path="/contracts/:id/dispute" element={<DisputeTicket />} />
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/top-users" element={<TopUsers />} />
+          <Route path="/my-proposals" element={<MyProposals />} />
+          <Route path="/profile/:id" element={<Profile />} />
+          {/* If they just hit /profile, redirect to dashboard or read user from localstorage */}
+          <Route path="/profile" element={<Profile />} />
+        </Route>
       </Route>
 
-      {/* Part 4: Admin-only routes */}
+      {/* Admin-only routes */}
       <Route element={<AdminRoute />}>
         <Route path="/admin" element={<AdminDashboard />} />
       </Route>

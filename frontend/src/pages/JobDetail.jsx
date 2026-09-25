@@ -1,92 +1,105 @@
-// JobDetail.jsx — Detailed job specification view
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import { ClockIcon } from '../components/Icons';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 export default function JobDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+
+  // User session
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  })();
+
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loadError, setLoadError] = useState(null);
 
-  // Proposal submission state
-  const [alreadyApplied, setAlreadyApplied] = useState(false);
-  const [showApplyForm, setShowApplyForm] = useState(false);
   const [bidAmount, setBidAmount] = useState('');
   const [coverLetter, setCoverLetter] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
-  const [submitSuccess, setSubmitSuccess] = useState('');
+  const [submitResult, setSubmitResult] = useState(null);
+  const [alreadyApplied, setAlreadyApplied] = useState(false);
 
-  const token = localStorage.getItem('token');
+  const [touched, setTouched] = useState({ bidAmount: false, coverLetter: false });
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     async function loadJob() {
       setLoading(true);
-      setError(null);
+      setLoadError(null);
       try {
         const res = await fetch(`${API_BASE_URL}/jobs/${id}`);
         const body = await res.json();
         if (!res.ok || !body.success) {
-          throw new Error(body.error || `Failed to fetch job details (${res.status})`);
+          throw new Error(body.error || 'Job not found.');
         }
-        setJob(body.data);
+        if (!cancelled) setJob(body.data);
       } catch (err) {
-        setError(err.message || 'Could not load job details.');
+        if (!cancelled) setLoadError(err.message || 'Could not load this job.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
-
     loadJob();
+    return () => { cancelled = true; };
   }, [id]);
 
-  // Check if current user has already submitted a proposal for this job
   useEffect(() => {
+    const token = localStorage.getItem('token');
     if (!token || !id) return;
     let cancelled = false;
-
-    async function checkExisting() {
+    async function checkExistingProposal() {
       try {
         const res = await fetch(`${API_BASE_URL}/proposals/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const body = await res.json();
         if (!cancelled && res.ok && body.success && Array.isArray(body.data)) {
-          if (body.data.some((p) => String(p.job_id) === String(id))) {
-            setAlreadyApplied(true);
-          }
+          const hasApplied = body.data.some((p) => String(p.job_id) === String(id));
+          if (hasApplied) setAlreadyApplied(true);
         }
-      } catch {
-        // Silently continue if proposal check fails
-      }
+      } catch {}
     }
+    checkExistingProposal();
+    return () => { cancelled = true; };
+  }, [id]);
 
-    checkExisting();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, token]);
-
-  async function handleProposalSubmit(e) {
-    e.preventDefault();
-    setSubmitError('');
-    setSubmitSuccess('');
-
+  function getValidationErrors() {
+    const errors = {};
     const amount = Number(bidAmount);
-    if (!bidAmount || Number.isNaN(amount) || amount <= 0) {
-      return setSubmitError('Please enter a valid bid amount greater than ₱0.');
+    if (!String(bidAmount).trim() || Number.isNaN(amount) || amount <= 0) {
+      errors.bidAmount = 'Enter a bid amount greater than 0.';
     }
     if (!coverLetter.trim()) {
-      return setSubmitError('A cover letter is required.');
+      errors.coverLetter = 'A cover letter is required.';
+    } else if (coverLetter.trim().length < 20) {
+      errors.coverLetter = `Write a bit more — ${20 - coverLetter.trim().length} characters to go.`;
     }
+    return errors;
+  }
+
+  const errors = getValidationErrors();
+  const showBidError = (touched.bidAmount || submitted) && errors.bidAmount;
+  const showCoverLetterError = (touched.coverLetter || submitted) && errors.coverLetter;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitResult(null);
+    setSubmitted(true);
+    setTouched({ bidAmount: true, coverLetter: true });
+    if (Object.keys(errors).length > 0 || alreadyApplied) return;
 
     setSubmitting(true);
     try {
-      if (!token) throw new Error('You must be logged in to submit a proposal.');
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('You need to be logged in to submit a proposal.');
 
       const res = await fetch(`${API_BASE_URL}/proposals`, {
         method: 'POST',
@@ -95,195 +108,186 @@ export default function JobDetail() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          job_id: id,
-          bid_amount: amount,
+          job_id: job.job_id,
+          bid_amount: Number(bidAmount),
           cover_letter: coverLetter.trim(),
         }),
       });
-
       const body = await res.json();
       if (res.status === 409 || body.error?.includes('already submitted')) {
         setAlreadyApplied(true);
-        setShowApplyForm(false);
-        setSubmitError('You have already submitted a proposal for this job.');
+        setSubmitResult({ type: 'error', message: body.error || 'You have already submitted a proposal for this job.' });
         return;
       }
-
       if (!res.ok || !body.success) {
-        throw new Error(body.error || 'Failed to submit proposal.');
+        throw new Error(body.error || body.message || 'Could not submit your proposal.');
       }
-
       setAlreadyApplied(true);
-      setShowApplyForm(false);
-      setSubmitSuccess('Proposal submitted successfully! The client will review it soon.');
+      setSubmitResult({ type: 'success', message: 'Proposal sent! The client will review it soon.' });
       setBidAmount('');
       setCoverLetter('');
     } catch (err) {
-      setSubmitError(err.message || 'Something went wrong while submitting.');
+      setSubmitResult({ type: 'error', message: err.message || 'Something went wrong while submitting.' });
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-bg text-text">
-      <Navbar />
+    <>
 
-      <main className="mx-auto max-w-4xl px-5 py-8 md:px-8">
-        <Link
-          to="/explore"
-          className="mb-6 inline-flex items-center text-xs font-medium text-accent hover:underline"
-        >
-          &larr; Back to Explore
-        </Link>
 
-        {loading && (
-          <div className="rounded-lg border border-border bg-panel p-10 text-center text-text-secondary">
-            Loading job details...
+        <div className="page-header d-flex justify-content-between align-items-center">
+          <div>
+            <h1 className="page-title">Job Details</h1>
+            <p className="page-subtitle">Review the requirements and submit your proposal.</p>
           </div>
-        )}
+          <button className="btn btn-outline-dark rounded-pill px-3 d-md-none" onClick={() => navigate('/explore')}>
+            <i className="bi bi-arrow-left me-1"></i> Back
+          </button>
+        </div>
 
-        {!loading && error && (
-          <div className="rounded-lg border border-border bg-panel p-10 text-center">
-            <p className="font-display text-lg font-medium text-error">Error</p>
-            <p className="mt-1 text-sm text-text-secondary">{error}</p>
-          </div>
-        )}
-
-        {!loading && !error && job && (
-          <div className="rounded-lg border border-border bg-panel p-6 md:p-8">
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <span className="mb-2 inline-block rounded-full border border-border px-3 py-1 text-xs text-text-secondary">
-                  {job.categories?.category_name || 'Uncategorized'}
-                </span>
-                <h1 className="font-display text-2xl md:text-3xl font-semibold leading-tight">
-                  {job.title}
-                </h1>
-              </div>
-
-              <div className="text-right">
-                <div className="text-accent font-semibold text-2xl">
-                  ₱{job.budget ? Number(job.budget).toLocaleString() : '—'}
-                </div>
-                <span className="text-xs text-text-secondary uppercase tracking-wider font-medium">
-                  {job.budget_type || 'Fixed'}
-                </span>
+        <div className="px-3 mb-4">
+          {loading && (
+            <div className="card text-center py-5 border">
+              <div className="card-body">
+                <h5 className="card-title fw-medium text-dark">Loading job...</h5>
               </div>
             </div>
+          )}
 
-            <div className="border-t border-border pt-6 mt-6">
-              <h2 className="text-sm font-medium text-text-secondary mb-3">Project Description</h2>
-              <p className="text-text text-sm md:text-base leading-relaxed whitespace-pre-line">
-                {job.description || 'No detailed description provided.'}
-              </p>
-            </div>
-
-            <div className="border-t border-border pt-6 mt-6 flex flex-wrap gap-6 text-xs text-text-secondary">
-              {job.deadline && (
-                <div className="flex items-center gap-1.5">
-                  <ClockIcon className="h-4 w-4" />
-                  <span>
-                    Deadline: <strong className="text-text font-medium">{new Date(job.deadline).toLocaleDateString()}</strong>
-                  </span>
-                </div>
-              )}
-              <div>
-                Posted on: <strong className="text-text font-medium">{new Date(job.created_at).toLocaleDateString()}</strong>
+          {!loading && loadError && (
+            <div className="card text-center py-5 border">
+              <div className="card-body">
+                <h5 className="card-title fw-medium text-dark">Couldn't load this job</h5>
+                <p className="card-text text-muted">{loadError}</p>
+                <button className="btn btn-outline-dark mt-3 rounded-pill px-4" onClick={() => window.location.reload()}>Try again</button>
               </div>
             </div>
+          )}
 
-            {/* In-page proposal submission section */}
-            {alreadyApplied ? (
-              <div className="mt-6 border-t border-border pt-6">
-                <div className="flex items-center gap-2.5 rounded-md bg-accent/10 border border-accent/30 p-3.5 text-sm font-medium text-accent">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[#1A1305] text-xs font-bold">
-                    ✓
-                  </span>
-                  <span>You have already submitted a proposal for this job.</span>
+          {!loading && !loadError && job && (
+            <div className="row g-4">
+              <div className="col-xl-8 col-lg-7">
+                <div className="card h-100 border">
+                  <div className="card-body p-4 p-md-5">
+                    <div className="d-flex flex-wrap items-center gap-2 mb-3">
+                      <span className="badge bg-light border text-dark fw-semibold px-3 py-2 rounded-pill" style={{ fontSize: '0.85rem' }}>
+                        {job.categories?.category_name || 'Uncategorized'}
+                      </span>
+                      {alreadyApplied && (
+                        <span className="badge bg-success-subtle text-success border border-success fw-medium px-3 py-2 rounded-pill">
+                          <i className="bi bi-check-circle me-1"></i> Applied
+                        </span>
+                      )}
+                    </div>
+                    
+                    <h2 className="fw-bold text-dark mb-3" style={{ fontSize: '2rem' }}>
+                      {job.title || 'Untitled job'}
+                    </h2>
+                    
+                    <p className="text-muted d-flex align-items-center mb-4">
+                      <i className="bi bi-clock me-2"></i>
+                      Posted {formatDate(job.created_at)}
+                      {job.users && ` by ${job.users.first_name} ${job.users.last_name}`}
+                    </p>
+                    
+                    <hr className="my-4" />
+                    
+                    <h5 className="fw-bold text-dark mb-3">Description</h5>
+                    <p className="text-muted" style={{ whiteSpace: 'pre-line', lineHeight: '1.8' }}>
+                      {job.description || 'No description provided.'}
+                    </p>
+                  </div>
                 </div>
               </div>
-            ) : submitSuccess ? (
-              <div className="mt-6 border-t border-border pt-6">
-                <div className="rounded-md bg-accent/10 border border-accent/30 p-3.5 text-sm font-medium text-accent">
-                  {submitSuccess}
+
+              <div className="col-xl-4 col-lg-5">
+                <div className="card border sticky-top" style={{ top: '90px' }}>
+                  <div className="card-body p-4">
+                    <p className="text-muted small fw-medium text-uppercase mb-1">Budget</p>
+                    <h3 className="fw-bold text-success mb-4">
+                      ₱{job.budget ? Number(job.budget).toLocaleString() : '—'}
+                    </h3>
+                    
+                    {alreadyApplied && (
+                      <div className="alert alert-success d-flex align-items-center mb-4" role="alert">
+                        <i className="bi bi-check-circle-fill me-2 fs-5"></i>
+                        <div>
+                          <strong>Already Applied</strong>
+                          <div className="small">You have already submitted a proposal for this job.</div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <hr className="my-4" />
+                    
+                    <h5 className="fw-bold text-dark mb-3">Submit a Proposal</h5>
+                    
+                    <form onSubmit={handleSubmit}>
+                      <div className="mb-3">
+                        <label className="form-label fw-medium small text-dark">Your bid (₱)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          disabled={submitting || alreadyApplied}
+                          value={bidAmount}
+                          onChange={(e) => setBidAmount(e.target.value)}
+                          onBlur={() => setTouched((t) => ({ ...t, bidAmount: true }))}
+                          className={`form-control bg-light ${showBidError ? 'is-invalid' : ''}`}
+                          placeholder="e.g. 15000"
+                        />
+                        {showBidError && (
+                          <div className="invalid-feedback">{errors.bidAmount}</div>
+                        )}
+                      </div>
+                      
+                      <div className="mb-4">
+                        <label className="form-label fw-medium small text-dark">Cover letter</label>
+                        <textarea
+                          rows="6"
+                          disabled={submitting || alreadyApplied}
+                          value={coverLetter}
+                          onChange={(e) => setCoverLetter(e.target.value)}
+                          onBlur={() => setTouched((t) => ({ ...t, coverLetter: true }))}
+                          className={`form-control bg-light ${showCoverLetterError ? 'is-invalid' : ''}`}
+                          placeholder="Explain why you're a good fit for this job."
+                          style={{ resize: 'none' }}
+                        ></textarea>
+                        {showCoverLetterError && (
+                          <div className="invalid-feedback">{errors.coverLetter}</div>
+                        )}
+                      </div>
+                      
+                      <button
+                        type="submit"
+                        disabled={submitting || alreadyApplied}
+                        className="btn btn-dark w-100 rounded-pill fw-medium py-2"
+                      >
+                        {alreadyApplied ? 'Already Applied' : submitting ? 'Submitting...' : 'Submit proposal'}
+                      </button>
+                      
+                      {submitResult && (
+                        <div className={`alert ${submitResult.type === 'success' ? 'alert-success' : 'alert-danger'} mt-3 mb-0 small py-2`} role="alert">
+                          {submitResult.message}
+                        </div>
+                      )}
+                    </form>
+                  </div>
                 </div>
               </div>
-            ) : !showApplyForm ? (
-              <div className="mt-6 border-t border-border pt-6 flex flex-wrap items-center justify-between gap-4">
-                <p className="text-xs text-text-secondary">Interested in this project? Submit your proposal directly to the client.</p>
-                <button
-                  onClick={() => setShowApplyForm(true)}
-                  className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer"
-                >
-                  Apply for this Job
-                </button>
-              </div>
-            ) : (
-              <div className="mt-6 border-t border-border pt-6">
-                <h3 className="font-display text-lg font-semibold mb-3">Submit Your Proposal</h3>
-
-                {submitError && (
-                  <div className="mb-4 rounded-md border border-error/30 bg-error/10 p-3 text-xs text-error">
-                    {submitError}
-                  </div>
-                )}
-
-                <form onSubmit={handleProposalSubmit} className="space-y-4">
-                  <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-text-secondary" htmlFor="bidAmount">
-                      Your Bid (₱)
-                    </label>
-                    <input
-                      id="bidAmount"
-                      type="number"
-                      min="1"
-                      step="0.01"
-                      required
-                      placeholder="e.g. 15000"
-                      value={bidAmount}
-                      onChange={(e) => setBidAmount(e.target.value)}
-                      className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-text-secondary" htmlFor="coverLetter">
-                      Cover Letter
-                    </label>
-                    <textarea
-                      id="coverLetter"
-                      rows={5}
-                      required
-                      placeholder="Explain your relevant experience and why you are the best fit for this project..."
-                      value={coverLetter}
-                      onChange={(e) => setCoverLetter(e.target.value)}
-                      className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-3 pt-1">
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      {submitting ? 'Submitting...' : 'Submit Proposal'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowApplyForm(false)}
-                      className="rounded-md border border-border px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text cursor-pointer transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-    </div>
+            </div>
+          )}
+        </div>
+      
+    </>
   );
+}
+
+function formatDate(value) {
+  if (!value) return 'recently';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'recently';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }

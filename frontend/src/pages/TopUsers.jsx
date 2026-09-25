@@ -1,14 +1,6 @@
-// TopUsers.jsx — Leaderboard of the best-rated freelancers and clients.
-// Two tabs (?tab=freelancers | clients), best-rated first, narrowed by the filters on the left:
-// minimum star rating and a range on average price (freelancers) / average budget (clients).
-// Only people with enough reviews are listed (the server decides; see min_reviews).
-import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import TopUserCard from '../components/TopUserCard';
-import { StarDisplay } from '../components/StarRating';
+import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { getTopUsers } from '../services/api';
-import { formatPeso } from '../utils/ratings';
 
 const PAGE_SIZE = 12;
 
@@ -20,8 +12,6 @@ const RATING_OPTIONS = [
   { value: 3, label: '3.0 & up' },
 ];
 
-// Returns `value`, but only after it has stopped changing for `delay` ms, so dragging the
-// price slider doesn't fire a request on every pixel.
 function useDebounced(value, delay) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -32,16 +22,20 @@ function useDebounced(value, delay) {
 }
 
 export default function TopUsers() {
+  const user = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); }
+    catch { return {}; }
+  })();
+
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') === 'clients' ? 'clients' : 'freelancers';
   const role = tab === 'clients' ? 'customer' : 'freelancer';
   const isFreelancer = role === 'freelancer';
 
   const [minRating, setMinRating] = useState(0);
-  // null = price filter off. Otherwise { min, max } chosen by the person.
   const [range, setRange] = useState(null);
-  const [bounds, setBounds] = useState(null); // { min, max } across everyone listed, from the server
-  const [filtersOpen, setFiltersOpen] = useState(false); // small screens only
+  const [bounds, setBounds] = useState(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
@@ -51,10 +45,8 @@ export default function TopUsers() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
 
-  // The filters used by the most recent successful search, so "Load more" continues that same list.
   const paramsRef = useRef({ role });
 
-  // Only send a price filter to the server when it actually narrows the range.
   const debouncedRange = useDebounced(range, 400);
   const apiMin = debouncedRange && bounds && debouncedRange.min > bounds.min ? debouncedRange.min : undefined;
   const apiMax = debouncedRange && bounds && debouncedRange.max < bounds.max ? debouncedRange.max : undefined;
@@ -107,7 +99,6 @@ export default function TopUsers() {
 
   function changeTab(next) {
     if (next === tab) return;
-    // Each tab is its own list with its own price scale, so start it fresh.
     setMinRating(0);
     setRange(null);
     setBounds(null);
@@ -124,113 +115,119 @@ export default function TopUsers() {
   const who = isFreelancer ? 'freelancers' : 'clients';
 
   return (
-    <div className="min-h-screen bg-bg text-text">
-      <Navbar />
+    <>
 
-      <div className="mx-auto flex max-w-[1400px] gap-6 px-5 py-6 md:px-8">
-        <FiltersSidebar
-          isFreelancer={isFreelancer}
-          minRating={minRating}
-          setMinRating={setMinRating}
-          range={range}
-          setRange={setRange}
-          bounds={bounds}
-          resetFilters={resetFilters}
-          resultCount={total}
-          who={who}
-          open={filtersOpen}
-        />
+        
 
-        <main className="min-w-0 flex-1">
-          <div className="mb-6 flex items-start justify-between gap-4">
-            <div>
-              <h1 className="font-display text-3xl font-semibold tracking-tight">Top users</h1>
-              <p className="mt-1 text-sm text-text-secondary">
-                Ranked by average rating. Only {who} with at least {minReviews} reviews are listed.
-              </p>
-            </div>
-            <button
-              onClick={() => setFiltersOpen((v) => !v)}
-              aria-expanded={filtersOpen}
-              className="shrink-0 rounded-md border border-border px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors hover:text-text md:hidden cursor-pointer"
-            >
-              Filters{filtersActive ? ' •' : ''}
-            </button>
+        <div className="row g-4 px-3 mb-4">
+          <div className="col-12 col-md-3">
+            <FiltersSidebar
+              isFreelancer={isFreelancer}
+              minRating={minRating}
+              setMinRating={setMinRating}
+              range={range}
+              setRange={setRange}
+              bounds={bounds}
+              resetFilters={resetFilters}
+              resultCount={total}
+              who={who}
+              open={filtersOpen}
+              setFiltersOpen={setFiltersOpen}
+              filtersActive={filtersActive}
+            />
           </div>
 
-          <div role="tablist" aria-label="User type" className="mb-6 flex gap-6 border-b border-border text-[15px]">
-            {[
-              { id: 'freelancers', label: 'Freelancers' },
-              { id: 'clients', label: 'Clients' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => changeTab(t.id)}
-                className={`-mb-px border-b-2 pb-3 transition-colors cursor-pointer ${
-                  tab === t.id
-                    ? 'border-accent font-semibold text-text'
-                    : 'border-transparent text-text-secondary hover:text-text'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {loading && <StateCard title="Loading top users..." />}
-
-          {!loading && error && users.length === 0 && (
-            <StateCard
-              title="Couldn't load the top users"
-              body={error}
-              action={{ label: 'Try again', onClick: () => window.location.reload() }}
-            />
-          )}
-
-          {!loading && !error && users.length === 0 && (
-            <StateCard
-              title={filtersActive ? 'No one matches those filters' : `No top ${who} yet`}
-              body={
-                filtersActive
-                  ? 'Try a lower minimum rating or a wider price range.'
-                  : `${isFreelancer ? 'Freelancers' : 'Clients'} show up here once they've received at least ${minReviews} reviews.`
-              }
-              action={filtersActive ? { label: 'Reset filters', onClick: resetFilters } : undefined}
-            />
-          )}
-
-          {!loading && users.length > 0 && (
-            <>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                {users.map((u, i) => (
-                  <TopUserCard key={u.user_id} user={u} role={role} rank={i + 1} />
-                ))}
-              </div>
-
-              {error && (
-                <p role="alert" className="mt-4 text-center text-[13px] text-error">
-                  {error}
+          <div className="col-12 col-md-9">
+            <div className="d-flex align-items-start justify-content-between gap-3 mb-4">
+              <div>
+                <h2 className="fw-bold mb-1">Top users</h2>
+                <p className="text-muted small mb-0">
+                  Ranked by average rating. Only {who} with at least {minReviews} reviews are listed.
                 </p>
-              )}
+              </div>
+              <button
+                onClick={() => setFiltersOpen((v) => !v)}
+                className="btn btn-outline-secondary d-md-none"
+              >
+                <i className="bi bi-funnel"></i> Filters{filtersActive ? ' •' : ''}
+              </button>
+            </div>
 
-              {hasMore && (
-                <div className="mt-6 text-center">
-                  <button
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    className="rounded-md border border-border px-5 py-2.5 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-text disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {loadingMore ? 'Loading...' : `Load more (${total - users.length} left)`}
-                  </button>
+            <div className="d-flex gap-2 mb-4 border-bottom pb-2">
+              {[
+                { id: 'freelancers', label: 'Freelancers' },
+                { id: 'clients', label: 'Clients' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => changeTab(t.id)}
+                  className={`btn rounded-pill px-4 ${
+                    tab === t.id
+                      ? 'text-white'
+                      : 'btn-outline-secondary border-0'
+                  }`}
+                  style={tab === t.id ? { backgroundColor: '#FF5A1E' } : {}}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {loading && <StateCard title="Loading top users..." />}
+
+            {!loading && error && users.length === 0 && (
+              <StateCard
+                title="Couldn't load the top users"
+                body={error}
+                action={{ label: 'Try again', onClick: () => window.location.reload() }}
+              />
+            )}
+
+            {!loading && !error && users.length === 0 && (
+              <StateCard
+                title={filtersActive ? 'No one matches those filters' : `No top ${who} yet`}
+                body={
+                  filtersActive
+                    ? 'Try a lower minimum rating or a wider price range.'
+                    : `${isFreelancer ? 'Freelancers' : 'Clients'} show up here once they've received at least ${minReviews} reviews.`
+                }
+                action={filtersActive ? { label: 'Reset filters', onClick: resetFilters } : undefined}
+              />
+            )}
+
+            {!loading && users.length > 0 && (
+              <>
+                <div className="row g-4">
+                  {users.map((u, i) => (
+                    <div className="col-12 col-md-6 col-xl-4" key={u.user_id || u.id || i}>
+                      <TopUserCard user={u} role={role} rank={i + 1} />
+                    </div>
+                  ))}
                 </div>
-              )}
-            </>
-          )}
-        </main>
-      </div>
-    </div>
+
+                {error && (
+                  <div className="alert alert-danger mt-4 text-center py-2">
+                    {error}
+                  </div>
+                )}
+
+                {hasMore && (
+                  <div className="mt-5 text-center">
+                    <button
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="btn btn-outline-dark rounded-pill px-4"
+                    >
+                      {loadingMore ? 'Loading...' : `Load more (${total - users.length} left)`}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      
+    </>
   );
 }
 
@@ -245,54 +242,58 @@ function FiltersSidebar({
   resultCount,
   who,
   open,
+  setFiltersOpen,
+  filtersActive
 }) {
   const priceLabel = isFreelancer ? 'Average price' : 'Average budget';
   const low = range ? range.min : bounds?.min;
   const high = range ? range.max : bounds?.max;
 
   return (
-    <aside className={`${open ? 'block' : 'hidden'} w-full shrink-0 md:block md:w-[280px]`}>
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-xl font-semibold">Filters</h2>
-        <span className="text-[13px] text-text-secondary">
-          {resultCount} {resultCount === 1 ? who.replace(/s$/, '') : who}
-        </span>
-      </div>
+    <div className={`card shadow-sm border-0 ${open ? 'd-block' : 'd-none d-md-block'}`}>
+      <div className="card-body">
+        <div className="d-flex align-items-center justify-content-between mb-3">
+          <h5 className="card-title fw-bold mb-0">Filters</h5>
+          <span className="badge bg-light border text-dark rounded-pill">
+            {resultCount} {resultCount === 1 ? who.replace(/s$/, '') : who}
+          </span>
+        </div>
 
-      <div className="mt-5 space-y-6">
-        <fieldset>
-          <legend className="mb-2 text-[13px] font-medium text-text-secondary">Star rating</legend>
-          <div className="space-y-1.5">
+        <div className="mb-4">
+          <label className="form-label text-muted small fw-bold text-uppercase">Star rating</label>
+          <div className="d-flex flex-column gap-2">
             {RATING_OPTIONS.map((o) => (
               <label
                 key={o.value}
-                className={`flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 text-[13px] transition-colors ${
+                className={`d-flex align-items-center gap-2 rounded-3 border p-2 cursor-pointer ${
                   minRating === o.value
-                    ? 'border-accent/60 bg-accent/10 text-text'
-                    : 'border-border text-text-secondary hover:text-text'
+                    ? 'border-warning bg-light'
+                    : 'border-secondary-subtle'
                 }`}
+                style={{ cursor: 'pointer' }}
               >
                 <input
                   type="radio"
                   name="min-rating"
+                  className="form-check-input mt-0"
                   checked={minRating === o.value}
                   onChange={() => setMinRating(o.value)}
-                  className="h-4 w-4 cursor-pointer accent-[color:var(--color-accent)]"
                 />
-                {o.value > 0 && <StarDisplay value={o.value} className="h-3.5 w-3.5" />}
-                <span>{o.label}</span>
+                {o.value > 0 && <i className="bi bi-star-fill text-warning small"></i>}
+                <span className="small">{o.label}</span>
               </label>
             ))}
           </div>
-        </fieldset>
+        </div>
 
-        <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-[13px] font-medium text-text-secondary">{priceLabel}</span>
+        <div className="mb-4">
+          <div className="d-flex align-items-center justify-content-between mb-2">
+            <span className="form-label text-muted small fw-bold text-uppercase mb-0">{priceLabel}</span>
             {range && (
               <button
                 onClick={() => setRange(null)}
-                className="text-[13px] font-medium text-accent hover:underline cursor-pointer"
+                className="btn btn-link btn-sm p-0 text-decoration-none"
+                style={{ color: '#FF5A1E' }}
               >
                 Reset
               </button>
@@ -303,41 +304,40 @@ function FiltersSidebar({
             <>
               <input
                 type="range"
-                aria-label={`Maximum ${priceLabel.toLowerCase()}`}
+                className="form-range mb-3"
                 min={bounds.min}
                 max={bounds.max}
                 value={Math.min(Math.max(high, bounds.min), bounds.max)}
                 onChange={(e) => setRange({ min: low, max: Number(e.target.value) })}
-                className="mb-3 h-1.5 w-full cursor-pointer accent-[color:var(--color-accent)]"
               />
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <span className="mb-1 block text-[11px] text-text-secondary">From, ₱</span>
+              <div className="row g-2">
+                <div className="col-6">
+                  <label className="text-muted" style={{ fontSize: '11px' }}>From, ₱</label>
                   <input
                     type="number"
                     min={0}
                     value={low}
                     onChange={(e) => setRange({ min: Number(e.target.value) || 0, max: high })}
-                    className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+                    className="form-control form-control-sm"
                   />
                 </div>
-                <div>
-                  <span className="mb-1 block text-[11px] text-text-secondary">To, ₱</span>
+                <div className="col-6">
+                  <label className="text-muted" style={{ fontSize: '11px' }}>To, ₱</label>
                   <input
                     type="number"
                     min={0}
                     value={high}
                     onChange={(e) => setRange({ min: low, max: Number(e.target.value) || 0 })}
-                    className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+                    className="form-control form-control-sm"
                   />
                 </div>
               </div>
-              <p className="mt-2 font-sans text-[12px] text-text-secondary">
-                Listed range: {formatPeso(bounds.min)} to {formatPeso(bounds.max)}
+              <p className="mt-2 text-muted" style={{ fontSize: '12px' }}>
+                Listed range: ₱{Number(bounds.min).toLocaleString()} to ₱{Number(bounds.max).toLocaleString()}
               </p>
             </>
           ) : (
-            <p className="text-[12px] text-text-secondary">
+            <p className="text-muted" style={{ fontSize: '12px' }}>
               No {isFreelancer ? 'prices' : 'budgets'} to filter yet. They come from completed contracts.
             </p>
           )}
@@ -345,28 +345,58 @@ function FiltersSidebar({
 
         <button
           onClick={resetFilters}
-          className="w-full rounded-md border border-border py-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-text cursor-pointer"
+          className="btn btn-outline-secondary w-100"
         >
           Reset all
         </button>
       </div>
-    </aside>
+    </div>
   );
 }
 
 function StateCard({ title, body, action }) {
   return (
-    <div className="rounded-lg border border-border bg-panel p-10 text-center">
-      <p className="font-display text-lg font-medium">{title}</p>
-      {body && <p className="mt-1 text-sm text-text-secondary">{body}</p>}
-      {action && (
-        <button
-          onClick={action.onClick}
-          className="mt-4 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer"
-        >
-          {action.label}
-        </button>
-      )}
+    <div className="card text-center p-5 shadow-sm border-0 mb-4">
+      <div className="card-body">
+        <h5 className="card-title fw-bold">{title}</h5>
+        {body && <p className="card-text text-muted">{body}</p>}
+        {action && (
+          <button onClick={action.onClick} className="btn mt-3 rounded-pill" style={{ backgroundColor: '#FF5A1E', color: '#fff' }}>
+            {action.label}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TopUserCard({ user, role, rank }) {
+  const isFreelancer = role === 'freelancer';
+  return (
+    <div className="card h-100 shadow-sm border-0">
+      <div className="card-body text-center position-relative">
+        <span className="badge bg-light border text-dark rounded-pill position-absolute top-0 start-0 m-3">
+          #{rank}
+        </span>
+        <img 
+          src={user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.first_name || user.name || 'User')}&background=random`} 
+          alt="Avatar" 
+          className="rounded-circle mb-3 border" 
+          style={{ width: "80px", height: "80px", objectFit: "cover" }} 
+        />
+        <h5 className="card-title fw-bold mb-1">{user.first_name ? `${user.first_name} ${user.last_name || ''}` : user.name || user.full_name || 'User'}</h5>
+        <div className="mb-2">
+           <span className="text-warning"><i className="bi bi-star-fill"></i> {user.average_rating ? Number(user.average_rating).toFixed(1) : "0.0"}</span>
+           <span className="text-muted small ms-1">({user.review_count || 0} reviews)</span>
+        </div>
+        <div className="text-muted small mb-3">
+          {isFreelancer ? 'Avg Price: ' : 'Avg Budget: '}
+          <span className="fw-medium text-dark">₱{Number(user.average_price || user.average_budget || 0).toLocaleString()}</span>
+        </div>
+        <Link to={`/profile/${user.user_id || user.id}`} className="btn btn-outline-dark btn-sm w-100 rounded-pill">
+          View Profile
+        </Link>
+      </div>
     </div>
   );
 }

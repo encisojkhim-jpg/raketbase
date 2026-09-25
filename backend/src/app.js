@@ -9,14 +9,11 @@ const proposalsRoutes = require('./routes/proposals');
 const contractRoutes = require('./routes/contracts');
 const adminRoutes = require('./routes/admin');
 const disputesRoutes = require('./routes/disputes');
-<<<<<<< HEAD
 const reviewsRoutes = require('./routes/reviews');
 const topUsersRoutes = require('./routes/topUsers');
 const messagesRoutes = require('./routes/messages');
 const ratesRoutes = require('./routes/rates');
-=======
 const usersRoutes = require('./routes/users');
->>>>>>> paula-ver2
 
 const app = express();
 
@@ -35,14 +32,11 @@ app.use('/api/v1/proposals', proposalsRoutes);
 app.use('/api/v1/contracts', contractRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/disputes', disputesRoutes);
-<<<<<<< HEAD
 app.use('/api/v1/reviews', reviewsRoutes);
 app.use('/api/v1/top-users', topUsersRoutes);
 app.use('/api/v1/conversations', messagesRoutes);
 app.use('/api/v1/rates', ratesRoutes);
-=======
 app.use('/api/v1/users', usersRoutes);
->>>>>>> paula-ver2
 
 // 404 for anything unmatched (Must stay AFTER all route mounts)
 app.use((req, res) => {

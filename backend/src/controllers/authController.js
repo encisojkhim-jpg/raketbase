@@ -167,11 +167,7 @@ async function switchRole(req, res) {
 async function getProfile(req, res) {
   const { data: profile, error } = await supabaseAdmin
     .from('users')
-<<<<<<< HEAD
     .select('user_id, email, first_name, last_name, role, active_role, bio, skills, portfolio_url, avatar_url, client_avatar_url, client_bio, company_name')
-=======
-    .select('user_id, email, first_name, last_name, role, active_role, bio, skills, portfolio_url, avatar_url')
->>>>>>> paula-ver2
     .eq('user_id', req.user.id)
     .single();
 
@@ -204,47 +200,23 @@ async function getProfile(req, res) {
 // (bio, skills, portfolio_url) and the client form (client_bio, company_name) can each
 // save without touching the other mode's data.
 async function updateProfile(req, res) {
-<<<<<<< HEAD
-  const { bio, skills, portfolio_url, client_bio, company_name } = req.body;
-
-  if ((bio && bio.length > 500) || (client_bio && client_bio.length > 500)) {
-    return res.status(400).json({ status: 400, message: 'Bio must be 500 characters or less' });
-=======
   const {
     bio, skills, portfolio_url,
     first_name, last_name, title, avatar_url, avatar_base64, avatar_ext, phone, location,
     hourly_rate, linkedin_url, github_url, website_url,
-    experience, education,
+    experience, education, client_bio, company_name
   } = req.body;
 
   if (bio && bio.length > 2000) {
     return res.status(400).json({ status: 400, message: 'Bio must be 2000 characters or less' });
->>>>>>> paula-ver2
+  }
+  if (client_bio && client_bio.length > 500) {
+    return res.status(400).json({ status: 400, message: 'Client bio must be 500 characters or less' });
   }
   if (company_name && company_name.length > 100) {
     return res.status(400).json({ status: 400, message: 'Company name must be 100 characters or less' });
   }
 
-<<<<<<< HEAD
-  const updates = {};
-  if (bio !== undefined) updates.bio = bio;
-  if (skills !== undefined) updates.skills = skills;
-  if (portfolio_url !== undefined) updates.portfolio_url = portfolio_url;
-  if (client_bio !== undefined) updates.client_bio = client_bio;
-  if (company_name !== undefined) updates.company_name = company_name;
-
-  if (Object.keys(updates).length === 0) {
-    return res.status(400).json({ status: 400, message: 'No profile fields to update' });
-  }
-
-  // Explicit columns (rather than select()) so the response never includes password_hash.
-  const { data: updated, error } = await supabaseAdmin
-    .from('users')
-    .update(updates)
-    .eq('user_id', req.user.id)
-    .select('user_id, email, first_name, last_name, role, active_role, bio, skills, portfolio_url, avatar_url, client_avatar_url, client_bio, company_name')
-    .single();
-=======
   // Handle Base64 Avatar Upload bypassing RLS using Service Role Key
   let finalAvatarUrl = avatar_url;
   if (avatar_base64 && avatar_ext) {
@@ -253,7 +225,6 @@ async function updateProfile(req, res) {
       const base64Data = avatar_base64.replace(/^data:image\/\w+;base64,/, '');
       const buffer = Buffer.from(base64Data, 'base64');
       const filePath = `${req.user.id}/avatar-${Date.now()}.${avatar_ext}`;
->>>>>>> paula-ver2
 
       // Determine mime type
       const mimeType = avatar_ext === 'png' ? 'image/png' : (avatar_ext === 'webp' ? 'image/webp' : 'image/jpeg');
@@ -284,6 +255,8 @@ async function updateProfile(req, res) {
   if (bio !== undefined) userUpdates.bio = bio;
   if (skills !== undefined) userUpdates.skills = skills;
   if (portfolio_url !== undefined) userUpdates.portfolio_url = portfolio_url;
+  if (client_bio !== undefined) userUpdates.client_bio = client_bio;
+  if (company_name !== undefined) userUpdates.company_name = company_name;
   if (finalAvatarUrl !== undefined) userUpdates.avatar_url = finalAvatarUrl;
 
   // Build update payload for auth metadata
