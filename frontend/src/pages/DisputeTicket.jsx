@@ -1,3 +1,5 @@
+// DisputeTicket.jsx — Contract Dispute Filing (Member 5 — Part 4)
+// Accessed at /contracts/:id/dispute by either participant of a contract.
 // Validation Specs (per task doc):
 //   - Reason / Category: required dropdown (Incomplete Work, Non-Payment, Unresponsive)
 //   - Evidence Summary: required, minimum 30 characters

@@ -1,3 +1,13 @@
+// AdminDashboard.jsx — Platform Management & Disputes (Member 5 — Part 4)
+// Features:
+// 1. Metric summary cards (Total Users, Active Contracts, Platform Revenue, Open Disputes)
+// 2. Dispute resolution panel — inspect evidence, resolve (Refund / Release / Split)
+// 3. User management table — toggle Active / Suspended
+//
+// NOTE: Falls back to local mock data if the backend/DB isn't reachable yet
+// (e.g. before the `users.status` migration is run, or before Supabase access
+// is available). Swap MOCK_* below or remove the catch-fallback once the
+// backend is confirmed working end-to-end.
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';

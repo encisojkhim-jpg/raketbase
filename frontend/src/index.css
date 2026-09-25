@@ -1,27 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&display=swap');
 @import "tailwindcss";
-
-img.rocket-logo {
-  height: auto;
-  transition: transform 0.2s ease;
-}
-
-.logo-shake {
-  transition: transform 0.2s ease;
-}
-
-.logo-shake:hover,
-a:hover .logo-shake {
-  animation: wiggle-rocket 0.4s ease-in-out infinite;
-}
-
-@keyframes wiggle-rocket {
-  0% { transform: translate(0px, 0px) rotate(0deg); }
-  25% { transform: translate(-1px, 1px) rotate(-1.5deg); }
-  50% { transform: translate(1px, -1px) rotate(1.5deg); }
-  75% { transform: translate(-1px, -1px) rotate(-1deg); }
-  100% { transform: translate(0px, 0px) rotate(0deg); }
-}
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;800&display=swap');
 
 @theme {
   --color-bg: #10131A;
@@ -38,50 +16,37 @@ a:hover .logo-shake {
   --font-sans: "Inter", sans-serif;
 }
 
-html[data-mode="client"] {
-  --color-bg: #14120E;
-  --color-panel: #1B1712;
-  --color-surface: #221D16;
-  --color-border: #332C1F;
-  --color-accent: #E7B24B;
-  --color-accent-hover: #F2C368;
-}
-
 body {
   font-family: var(--font-sans);
-  background-color: var(--color-bg);
 }
 
-/* transition: eases the whole Client/Freelancer palette switch (data-mode on <html>)
-   together — without it, only body's own background transitions and everything else
-   using the theme variables (cards, borders, accent buttons) snaps instantly. */
-* {
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-  scrollbar-width: thin; /* Firefox + current Chrome/Edge */
-  scrollbar-color: color-mix(in srgb, var(--color-text-secondary) 35%, transparent) transparent;
+img.rocket-logo {
+  width: 50% !important; /* Takes up exactly half the width of the container */
+  height: auto !important; /* Keeps the rocket perfectly proportioned */
+  transform: rotate(0deg); 
+  transition: transform 0.2s ease;
 }
 
-/* Older Safari/WebKit */
-*::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-*::-webkit-scrollbar-thumb {
-  background-color: color-mix(in srgb, var(--color-text-secondary) 35%, transparent);
-  border-radius: 9999px;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background-color: var(--color-accent);
+/* Keep your existing hover and @keyframes rules exactly the same below this */
+
+/* Slower, smoother animation timing*/
+.alert-green-card:hover .rocket-logo {
+  animation: wiggle-rocket 0.4s ease-in-out infinite;
 }
 
-@keyframes toast-progress {
-  from {
-    width: 100%;
-  }
-  to {
-    width: 0%;
-  }
+/* Softer movements (max 1px translation and 1.5 degrees of rotation) */
+@keyframes wiggle-rocket {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  25% { transform: translate(-1px, 1px) rotate(-1.5deg); }
+  50% { transform: translate(1px, -1px) rotate(1.5deg); }
+  75% { transform: translate(-1px, -1px) rotate(-1deg); }
+  100% { transform: translate(0px, 0px) rotate(0deg); }
+}
+
+.logo-shake {
+  transition: transform 0.2s ease;
+}
+
+.logo-shake:hover {
+  animation: wiggle-rocket 0.4s ease-in-out infinite;
 }

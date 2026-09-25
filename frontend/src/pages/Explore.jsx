@@ -1,38 +1,10 @@
-// Explore.jsx — Job & Marketplace Discovery with Dynamic Filters
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import { CloseIcon, ClockIcon } from '../components/Icons';
-import { useCurrentUser } from '../utils/currentUser';
-import { getMyProposals } from '../services/api';
-import { useCurrency } from '../context/CurrencyContext';
+import { useNavigate, Link } from 'react-router-dom';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
-// Badge shown on a job card for a job the freelancer has already proposed on
-// (withdrawn proposals are excluded — see proposalStatusByJobId below).
-const PROPOSAL_STATUS_BADGE = {
-  pending: {
-    label: '✓ Applied',
-    className: 'rounded-full border border-accent/40 bg-accent/15 px-2.5 py-1 text-[12px] font-semibold text-accent',
-  },
-  accepted: {
-    label: 'Accepted',
-    className: 'rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[12px] font-semibold text-emerald-400',
-  },
-  rejected: {
-    label: 'Rejected',
-    className: 'rounded-full border border-error/40 bg-error/10 px-2.5 py-1 text-[12px] font-semibold text-error',
-  },
-};
-
 export default function Explore() {
   const navigate = useNavigate();
-
-  const currentUser = useCurrentUser();
-  const isClientMode = currentUser.active_role === 'customer';
-
-  const { convertAmount, formatPhp, currency } = useCurrency();
 
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,12 +14,14 @@ export default function Explore() {
   const [query, setQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [budget, setBudget] = useState(null);
-  const [hideTaken, setHideTaken] = useState(false);
 
-  // The freelancer's own proposals, used to badge job cards as Applied /
-  // Accepted / Rejected. Fetched once — mode-awareness re-derives from this
-  // plus the live currentUser, so switching modes needs no refetch.
-  const [myProposals, setMyProposals] = useState([]);
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  })();
 
   useEffect(() => {
     let cancelled = false;
@@ -85,49 +59,15 @@ export default function Explore() {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadProposals() {
-      try {
-        const res = await getMyProposals();
-        if (!cancelled) setMyProposals(res.data || []);
-      } catch {
-        // Silently ignore — job cards just won't show an applied badge.
-      }
-    }
-    loadProposals();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // job_id -> proposal status, excluding withdrawn proposals (a withdrawn
-  // proposal shouldn't show as "Applied" — see FreelancerProfile.jsx, which
-  // gives withdrawn its own separate notice instead).
-  const proposalStatusByJobId = useMemo(() => {
-    const map = {};
-    for (const p of myProposals) {
-      if (p.status === 'withdrawn') continue;
-      map[String(p.job_id)] = p.status;
-    }
-    return map;
-  }, [myProposals]);
-
   const budgetBounds = useMemo(() => {
     if (!jobs.length) return { min: 0, max: 0 };
     const amounts = jobs.map((j) => Number(j.budget) || 0);
     return { min: Math.min(...amounts), max: Math.max(...amounts) };
   }, [jobs]);
 
-  // Jobs in play after the "Hide taken jobs" option is applied
-  const pool = useMemo(
-    () => (hideTaken ? jobs.filter((j) => j.status === 'open') : jobs),
-    [jobs, hideTaken]
-  );
-
   const categories = useMemo(() => {
     const counts = {};
-    for (const j of pool) {
+    for (const j of jobs) {
       const name = j.categories?.category_name || 'Other';
       counts[name] = (counts[name] || 0) + 1;
     }
@@ -137,11 +77,11 @@ export default function Explore() {
       label: name,
       count,
     }));
-    return [{ id: 'all', name: 'All', label: 'All', count: pool.length }, ...list];
-  }, [pool]);
+    return [{ id: 'all', name: 'All', label: 'All', count: jobs.length }, ...list];
+  }, [jobs]);
 
   const visibleJobs = useMemo(() => {
-    return pool.filter((j) => {
+    return jobs.filter((j) => {
       if (activeCategory !== 'all') {
         const catName = (j.categories?.category_name || 'Other').toLowerCase().replace(/\s+/g, '-');
         if (catName !== activeCategory) return false;
@@ -150,8 +90,7 @@ export default function Explore() {
         const q = query.toLowerCase();
         const inTitle = j.title?.toLowerCase().includes(q);
         const inDesc = j.description?.toLowerCase().includes(q);
-        const inCategory = (j.categories?.category_name || '').toLowerCase().includes(q);
-        if (!inTitle && !inDesc && !inCategory) return false;
+        if (!inTitle && !inDesc) return false;
       }
       if (budget) {
         const amount = Number(j.budget) || 0;
@@ -159,124 +98,203 @@ export default function Explore() {
       }
       return true;
     });
-  }, [pool, activeCategory, query, budget]);
+  }, [jobs, activeCategory, query, budget]);
 
   function resetFilters() {
     setActiveCategory('all');
     setQuery('');
     setBudget(budgetBounds);
-    setHideTaken(false);
   }
 
   return (
-    <div className="min-h-screen bg-bg text-text">
-      <Navbar
-        showSearch
-        searchQuery={query}
-        setSearchQuery={setQuery}
-        showFilters
-        filtersOpen={filtersOpen}
-        setFiltersOpen={setFiltersOpen}
-      />
+    <>
+      {/* Sidebar Component */}
+      <div className="sidebar-wrapper" id="sidebar">
+        <Link to="/" className="sidebar-brand text-decoration-none d-flex align-items-center gap-1" style={{ padding: '10px 0' }}>
+          <img src="/racketbaseSVG.svg" alt="RaketBase Logo" style={{ height: '50px', objectFit: 'contain', marginTop: '-8px' }} />
+          <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '24px', color: '#fff', letterSpacing: '0.5px', display: 'flex', alignItems: 'center' }}>
+            <span style={{ fontWeight: 800 }}>RAKET</span>
+            <span style={{ fontWeight: 400 }}>BASE</span>
+          </div>
+        </Link>
+        <div className="flex-grow-1 overflow-y-auto mt-4">
+          <div className="sidebar-menu-section">
+            <div className="sidebar-menu-title">Menu</div>
+            <ul className="sidebar-menu-list">
+              <li className="sidebar-menu-item">
+                <Link to="/dashboard" className="sidebar-menu-link">
+                  <i className="bi bi-grid-fill"></i>
+                  <span>Dashboard</span>
+                </Link>
+              </li>
+              <li className="sidebar-menu-item">
+                <Link to={`/freelancer/${user.user_id || user.id}`} className="sidebar-menu-link">
+                  <i className="bi bi-person"></i>
+                  <span>My Account</span>
+                </Link>
+              </li>
+            </ul>
+          </div>
+          <div className="sidebar-menu-section">
+            <div className="sidebar-menu-title">Jobs</div>
+            <ul className="sidebar-menu-list">
+              <li className="sidebar-menu-item">
+                <Link to="/explore" className="sidebar-menu-link active">
+                  <i className="bi bi-search"></i>
+                  <span>Explore Jobs</span>
+                </Link>
+              </li>
+              {user.active_role === 'customer' && (
+                <>
+                  <li className="sidebar-menu-item">
+                    <Link to="/my-jobs" className="sidebar-menu-link">
+                      <i className="bi bi-briefcase"></i>
+                      <span>My Postings</span>
+                    </Link>
+                  </li>
+                  <li className="sidebar-menu-item">
+                    <Link to="/jobs/create" className="sidebar-menu-link">
+                      <i className="bi bi-plus-circle"></i>
+                      <span>Post a Job</span>
+                    </Link>
+                  </li>
+                </>
+              )}
+            </ul>
+          </div>
+        </div>
+        <div className="sidebar-profile">
+          <img src={user.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop"} alt="Profile" className="sidebar-profile-img" />
+          <div className="sidebar-profile-info">
+            <div className="sidebar-profile-name">{user.first_name || 'User'} {user.last_name || ''}</div>
+            <div className="sidebar-profile-email">{user.email || 'user@example.com'}</div>
+          </div>
+        </div>
+      </div>
 
-      <div className="mx-auto flex max-w-[1400px] gap-6 px-5 py-6 md:px-8">
-        {filtersOpen && budget && (
-          <FiltersSidebar
-            budget={budget}
-            setBudget={setBudget}
-            budgetBounds={budgetBounds}
-            resetFilters={resetFilters}
-            resultCount={visibleJobs.length}
-            hideTaken={hideTaken}
-            setHideTaken={setHideTaken}
-            onClose={() => setFiltersOpen(false)}
-          />
-        )}
-
-        <main className="min-w-0 flex-1">
-          <div className="mb-6 flex items-center justify-between">
-            <h1 className="font-display text-3xl font-semibold tracking-tight">Explore jobs</h1>
-            {isClientMode && (
-              <button
-                onClick={() => navigate('/jobs/create')}
-                className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer"
-              >
-                + Post a Job
+      <div className="main-wrapper">
+        <header className="navbar-custom">
+          <div className="navbar-left">
+            <button className="sidebar-toggle-btn me-2" id="sidebar-toggle">
+              <i className="bi bi-list"></i>
+            </button>
+          </div>
+          <div className="navbar-search-wrapper">
+            <input 
+              type="text" 
+              className="navbar-search-input" 
+              placeholder="Search jobs..." 
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <button className="navbar-search-btn"><i className="bi bi-search"></i></button>
+          </div>
+          <div className="navbar-actions">
+            <button className="navbar-action-btn me-2 d-md-none" onClick={() => setFiltersOpen(!filtersOpen)}>
+              <i className="bi bi-funnel"></i>
+            </button>
+            <div className="dropdown ms-2">
+              <button className="navbar-profile-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <img src={user.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop"} alt="Profile" className="navbar-profile-img" />
+                <span className="navbar-profile-name d-none d-md-inline">{user.first_name || 'User'}</span>
+                <i className="bi bi-chevron-down navbar-profile-caret"></i>
               </button>
+              <ul className="dropdown-menu dropdown-menu-end dropdown-menu-profile">
+                <li className="dropdown-header">Welcome !</li>
+                <li><Link className="dropdown-item" to="#"><i className="bi bi-person"></i> My Account</Link></li>
+                <li><Link className="dropdown-item" to="#"><i className="bi bi-gear"></i> Settings</Link></li>
+                <li><hr className="dropdown-divider" /></li>
+                <li><Link className="dropdown-item text-danger" to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><i className="bi bi-box-arrow-right"></i> Logout</Link></li>
+              </ul>
+            </div>
+          </div>
+        </header>
+
+        <div className="page-header d-flex justify-content-between align-items-center">
+          <div>
+            <h1 className="page-title">Explore Jobs</h1>
+            <p className="page-subtitle">Find the right project or talent for your needs.</p>
+          </div>
+          {user.active_role === 'customer' && (
+            <Link to="/jobs/create" className="btn btn-dark fw-bold rounded-pill px-4">
+              <i className="bi bi-plus-lg me-1"></i> Post a Job
+            </Link>
+          )}
+        </div>
+
+        <div className="row g-4 px-3 mb-4">
+          <div className="col-xl-9 col-lg-8 order-2 order-lg-1">
+            <div className="d-flex gap-2 overflow-x-auto mb-4 pb-2" style={{ scrollbarWidth: 'none' }}>
+              {categories.map((c) => {
+                const isActive = activeCategory === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setActiveCategory(c.id)}
+                    className={`btn rounded-pill px-4 py-2 flex-shrink-0 fw-medium ${isActive ? 'text-white' : 'btn-outline-secondary bg-white'}`}
+                    style={isActive ? { backgroundColor: '#FF5A1E', borderColor: '#FF5A1E' } : {}}
+                  >
+                    {c.label} <span className="small opacity-75">({c.count})</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {loading && <StateCard title="Loading jobs..." />}
+
+            {!loading && loadError && (
+              <StateCard
+                title="Couldn't load jobs"
+                body={loadError}
+                action={{ label: 'Try again', onClick: () => window.location.reload() }}
+              />
+            )}
+
+            {!loading && !loadError && visibleJobs.length === 0 && (
+              <StateCard
+                title="No jobs match those filters"
+                body="Try widening the budget range or clearing your search."
+                action={{ label: 'Reset filters', onClick: resetFilters }}
+              />
+            )}
+
+            {!loading && !loadError && visibleJobs.length > 0 && (
+              <div className="row g-4">
+                {visibleJobs.map((job) => (
+                  <div className="col-md-6 col-xl-4" key={job.job_id}>
+                    <JobCard job={job} onOpen={() => navigate(`/explore/${job.job_id}`)} />
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
-          <nav className="mb-6 flex gap-6 overflow-x-auto border-b border-border pb-3 text-[15px]">
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setActiveCategory(c.id)}
-                className={`shrink-0 whitespace-nowrap transition-colors cursor-pointer ${
-                  activeCategory === c.id ? 'font-semibold text-text' : 'text-text-secondary hover:text-text'
-                }`}
-              >
-                {c.label} <span className="text-text-secondary">({c.count})</span>
-              </button>
-            ))}
-          </nav>
-
-          {loading && <StateCard title="Loading jobs..." />}
-
-          {!loading && loadError && (
-            <StateCard
-              title="Couldn't load jobs"
-              body={loadError}
-              action={{ label: 'Try again', onClick: () => window.location.reload() }}
-            />
-          )}
-
-          {!loading && !loadError && visibleJobs.length === 0 && (
-            <StateCard
-              title="No jobs match those filters"
-              body="Try widening the budget range or clearing your search."
-              action={{ label: 'Reset filters', onClick: resetFilters }}
-            />
-          )}
-
-          {!loading && !loadError && visibleJobs.length > 0 && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {visibleJobs.map((job) => (
-                <JobCard
-                  key={job.job_id}
-                  job={job}
-                  onOpen={() => navigate(`/explore/${job.job_id}`)}
-                  isClientMode={isClientMode}
-                  currentUserId={currentUser.user_id}
-                  proposalStatus={proposalStatusByJobId[String(job.job_id)]}
-                  convertAmount={convertAmount}
-                  formatPhp={formatPhp}
-                  currency={currency}
-                  onCategoryClick={(catId) => setActiveCategory(catId)}
-                />
-              ))}
-            </div>
-          )}
-        </main>
+          <div className={`col-xl-3 col-lg-4 order-1 order-lg-2 ${!filtersOpen ? 'd-none' : ''}`}>
+            {budget && (
+              <FiltersSidebar
+                budget={budget}
+                setBudget={setBudget}
+                budgetBounds={budgetBounds}
+                resetFilters={resetFilters}
+                resultCount={visibleJobs.length}
+                onClose={() => setFiltersOpen(false)}
+              />
+            )}
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultCount, hideTaken, setHideTaken, onClose }) {
-  const filterContent = (
-    <>
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-xl font-semibold">Filters</h2>
-        <button
-          onClick={onClose}
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-text-secondary hover:text-text cursor-pointer"
-          aria-label="Hide filters"
-        >
-          <CloseIcon className="h-4 w-4" />
-        </button>
+function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultCount, onClose }) {
+  return (
+    <div className="card h-100">
+      <div className="card-header d-flex justify-content-between align-items-center">
+        <h5 className="card-title mb-0">Filters</h5>
+        <button onClick={onClose} className="btn-close d-lg-none" aria-label="Close"></button>
       </div>
-
-      <div className="mt-5 space-y-5">
+      <div className="card-body">
         <RangeField
           label="Budget"
           unit="₱"
@@ -285,92 +303,46 @@ function FiltersSidebar({ budget, setBudget, budgetBounds, resetFilters, resultC
           bounds={budgetBounds}
           onReset={() => setBudget(budgetBounds)}
         />
-
-        <label className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-text-secondary">
-          <input
-            type="checkbox"
-            checked={hideTaken}
-            onChange={(e) => setHideTaken(e.target.checked)}
-            className="h-4 w-4 cursor-pointer accent-[color:var(--color-accent)]"
-          />
-          Hide taken jobs
-        </label>
-
-        <div className="space-y-2 pt-2">
-          <button
-            onClick={onClose}
-            className="w-full rounded-md bg-accent py-3 text-sm font-semibold text-[#1A1305] transition-colors hover:bg-accent-hover cursor-pointer"
-          >
-            Show {resultCount} results
-          </button>
-          <button
-            onClick={resetFilters}
-            className="w-full rounded-md border border-border py-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-text cursor-pointer"
-          >
-            Reset all
-          </button>
-        </div>
+        <hr className="my-4" />
+        <button className="btn btn-dark w-100 mb-2 fw-medium rounded-pill">Show {resultCount} results</button>
+        <button onClick={resetFilters} className="btn btn-outline-secondary w-100 fw-medium rounded-pill">Reset all</button>
       </div>
-    </>
-  );
-
-  return (
-    <>
-      {/* Desktop sidebar */}
-      <aside className="hidden w-[280px] shrink-0 md:block">
-        {filterContent}
-      </aside>
-
-      {/* Mobile drawer modal */}
-      <div
-        className="fixed inset-0 z-50 flex md:hidden bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-        onClick={onClose}
-      >
-        <div
-          className="ml-auto w-[85%] max-w-sm h-full bg-panel p-6 overflow-y-auto border-l border-border shadow-2xl animate-in slide-in-from-right duration-200"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {filterContent}
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
 
 function RangeField({ label, unit, value, onChange, bounds, onReset }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[13px] font-medium text-text-secondary">{label}</span>
-        <button onClick={onReset} className="text-[13px] font-medium text-accent hover:underline cursor-pointer">
-          Reset
-        </button>
+      <div className="d-flex justify-content-between align-items-center mb-2">
+        <span className="fw-medium small text-dark">{label}</span>
+        <button onClick={onReset} className="btn btn-link p-0 text-decoration-none small text-success">Reset</button>
       </div>
       <input
         type="range"
+        className="form-range mb-3"
         min={bounds.min}
         max={bounds.max}
         value={value.max}
         onChange={(e) => onChange({ ...value, max: Number(e.target.value) })}
-        className="mb-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-border accent-[color:var(--color-accent)]"
       />
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <span className="mb-1 block text-[11px] text-text-secondary">From{unit ? `, ${unit}` : ''}</span>
+      <div className="row g-2">
+        <div className="col-6">
+          <label className="form-label small text-muted mb-1">From{unit ? `, ${unit}` : ''}</label>
           <input
             type="number"
+            className="form-control form-control-sm bg-light"
             value={value.min}
             onChange={(e) => onChange({ ...value, min: Number(e.target.value) })}
-            className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-accent"
           />
         </div>
-        <div>
-          <span className="mb-1 block text-[11px] text-text-secondary">To{unit ? `, ${unit}` : ''}</span>
+        <div className="col-6">
+          <label className="form-label small text-muted mb-1">To{unit ? `, ${unit}` : ''}</label>
           <input
             type="number"
+            className="form-control form-control-sm bg-light"
             value={value.max}
             onChange={(e) => onChange({ ...value, max: Number(e.target.value) })}
-            className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-accent"
           />
         </div>
       </div>
@@ -378,103 +350,52 @@ function RangeField({ label, unit, value, onChange, bounds, onReset }) {
   );
 }
 
-function JobCard({ job, onOpen, isClientMode, currentUserId, proposalStatus, convertAmount, formatPhp, currency, onCategoryClick }) {
+function JobCard({ job, onOpen }) {
   const categoryName = job.categories?.category_name || 'Uncategorized';
   const posted = formatDate(job.created_at);
-  const isTaken = job.status && job.status !== 'open';
-  const isOwnJob = isClientMode && Boolean(currentUserId) && job.client_id === currentUserId;
-  const appliedBadge = !isClientMode && proposalStatus ? PROPOSAL_STATUS_BADGE[proposalStatus] : null;
-
-  let buttonLabel = 'View & apply';
-  if (isOwnJob || isTaken) {
-    buttonLabel = 'View details';
-  } else if (appliedBadge) {
-    buttonLabel = 'Already Applied';
-  }
 
   return (
-    <div
-      className={`flex flex-col rounded-lg border p-5 transition-colors ${
-        isTaken
-          ? 'border-dashed border-border bg-surface/60 hover:border-text-secondary/50'
-          : 'border-border bg-panel hover:border-accent/40'
-      }`}
-    >
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <span
-          onClick={(e) => { e.stopPropagation(); onCategoryClick && onCategoryClick(categoryName.toLowerCase().replace(/\s+/g, '-')); }}
-          className="rounded-full border border-border px-2.5 py-1 text-[12px] text-text-secondary hover:border-accent/40 hover:text-accent cursor-pointer transition-colors"
-        >
-          {categoryName}
-        </span>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          {isOwnJob && (
-            <span className="rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[12px] font-semibold text-accent">
-              Your posting
-            </span>
-          )}
-          {isTaken && (
-            <span className="rounded-full border border-error/40 bg-error/10 px-2.5 py-1 text-[12px] font-semibold text-error">
-              Job taken
-            </span>
-          )}
-          {appliedBadge && <span className={appliedBadge.className}>{appliedBadge.label}</span>}
+    <div className="card h-100 border transition-all" style={{ cursor: 'pointer' }} onClick={onOpen}>
+      <div className="card-body d-flex flex-column">
+        <div className="mb-3">
+          <span className="badge bg-light border text-dark fw-semibold px-3 py-2 rounded-pill" style={{ fontSize: '0.85rem' }}>
+            {categoryName}
+          </span>
           {posted && (
-            <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
-              <ClockIcon className="h-3.5 w-3.5" />
-              {posted}
-            </span>
+            <div className="small text-muted mt-2 d-flex align-items-center">
+              <i className="bi bi-clock me-1"></i>
+              <span>Posted {posted}</span>
+            </div>
           )}
         </div>
-      </div>
-
-      <button onClick={onOpen} className="mb-2 text-left cursor-pointer">
-        <span
-          className={`font-display text-lg font-medium leading-snug transition-colors ${
-            isTaken ? 'text-text-secondary hover:text-text' : 'hover:text-accent'
-          }`}
-        >
+        <h5 className="card-title text-dark fw-bold mb-3 fs-5">
           {job.title || 'Untitled job'}
-        </span>
-      </button>
-
-      <p className="mb-4 text-[13px] font-medium text-text-secondary">
-        Budget:{' '}
-        <span
-          className={`font-sans text-base font-semibold ${isTaken ? 'text-text-secondary' : 'text-text'}`}
-          title={currency !== 'PHP' ? formatPhp(job.budget) : undefined}
-        >
-          {convertAmount(job.budget)}
-        </span>
-      </p>
-
-      <p className="mb-4 line-clamp-3 text-[13px] leading-relaxed text-text-secondary">
-        {job.description || 'No description provided.'}
-      </p>
-
-      <button
-        onClick={onOpen}
-        className="mt-auto rounded-md border border-border py-2.5 text-[13px] font-medium transition-colors hover:border-accent/40 hover:text-accent cursor-pointer"
-      >
-        {buttonLabel}
-      </button>
+        </h5>
+        <div className="mb-3">
+          <span className="small text-muted">Budget: </span>
+          <span className="fw-bold text-success fs-6">₱{job.budget ? Number(job.budget).toLocaleString() : '—'}</span>
+        </div>
+        <p className="card-text small text-muted flex-grow-1" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {job.description || 'No description provided.'}
+        </p>
+        <button onClick={(e) => { e.stopPropagation(); onOpen(); }} className="btn btn-outline-dark w-100 mt-3 rounded-pill fw-medium">View & Apply</button>
+      </div>
     </div>
   );
 }
 
 function StateCard({ title, body, action }) {
   return (
-    <div className="rounded-lg border border-border bg-panel p-10 text-center">
-      <p className="font-display text-lg font-medium">{title}</p>
-      {body && <p className="mt-1 text-sm text-text-secondary">{body}</p>}
-      {action && (
-        <button
-          onClick={action.onClick}
-          className="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium hover:border-accent/40 cursor-pointer"
-        >
-          {action.label}
-        </button>
-      )}
+    <div className="card text-center py-5 border">
+      <div className="card-body">
+        <h5 className="card-title fw-medium text-dark">{title}</h5>
+        {body && <p className="card-text text-muted">{body}</p>}
+        {action && (
+          <button onClick={action.onClick} className="btn btn-outline-dark mt-3 rounded-pill px-4">
+            {action.label}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

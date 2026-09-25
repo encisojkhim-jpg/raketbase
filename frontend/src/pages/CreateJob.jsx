@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCategories, createJob } from '../services/api';
 import Navbar from '../components/Navbar';
-import { setUnsaved } from '../utils/unsavedChanges';
 
 export default function CreateJob() {
   const navigate = useNavigate();
@@ -17,12 +16,6 @@ export default function CreateJob() {
   const [categories, setCategories] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Tell the navbar's mode switch when this form holds unsaved input
-  useEffect(() => {
-    setUnsaved('create-job', Boolean(title.trim() || description.trim() || budget || deadline));
-  }, [title, description, budget, deadline]);
-  useEffect(() => () => setUnsaved('create-job', false), []);
 
   useEffect(() => {
     async function loadCategories() {

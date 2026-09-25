@@ -2,11 +2,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('token');
-  // For FormData (file uploads) the browser must set Content-Type itself so it can
-  // include the multipart boundary — forcing application/json would break the upload.
-  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers = {
-    ...(!isFormData && { 'Content-Type': 'application/json' }),
+    'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
@@ -54,15 +51,9 @@ export function updateProfile(payload) {
   });
 }
 
-// Profile photo (freelancer profile page)
-export function uploadAvatar(file) {
-  const formData = new FormData();
-  formData.append('avatar', file);
-  return request('/auth/profile/avatar', { method: 'POST', body: formData });
-}
-
-export function removeAvatar() {
-  return request('/auth/profile/avatar', { method: 'DELETE' });
+// Users API — Public profile
+export function getFreelancerProfile(userId) {
+  return request(`/users/${userId}`);
 }
 
 // Jobs API
@@ -114,19 +105,6 @@ export function rejectProposal(proposalId) {
   return request(`/proposals/${proposalId}/reject`, { method: 'PATCH' });
 }
 
-export function withdrawProposal(proposalId) {
-  return request(`/proposals/${proposalId}/withdraw`, { method: 'PATCH' });
-}
-
-// payload is optional — pass { bid_amount, cover_letter } to revise the
-// proposal as part of restoring it, or omit to restore it unchanged.
-export function unwithdrawProposal(proposalId, payload = {}) {
-  return request(`/proposals/${proposalId}/unwithdraw`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
-}
-
 // Contract Execution & Escrow API (Part 3)
 export function getContracts() {
   return request('/contracts');
@@ -142,19 +120,6 @@ export function submitContractWork(contractId) {
 
 export function completeContract(contractId) {
   return request(`/contracts/${contractId}/complete`, { method: 'PATCH' });
-}
-
-// Milestone-based contracts (Part 6)
-export function getContractMilestones(contractId) {
-  return request(`/contracts/${contractId}/milestones`);
-}
-
-export function submitMilestone(contractId, milestoneId) {
-  return request(`/contracts/${contractId}/milestones/${milestoneId}/submit`, { method: 'PATCH' });
-}
-
-export function approveMilestone(contractId, milestoneId) {
-  return request(`/contracts/${contractId}/milestones/${milestoneId}/approve`, { method: 'PATCH' });
 }
 
 // Admin API (Part 4)
@@ -194,64 +159,4 @@ export function resolveDispute(disputeId, payload) {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
-}
-
-// Ratings & Reviews API
-// payload: { contract_id, rating, comment?, ...three sub-ratings for the reviewee's role }
-export function createReview(payload) {
-  return request('/reviews', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-// Public profile + ratings for one person in one role ('freelancer' | 'customer').
-export function getUserReviews(userId, role) {
-  return request(`/reviews/users/${userId}?role=${role}`);
-}
-
-// Messaging API (Part 5)
-export function getConversations() {
-  return request('/conversations');
-}
-
-export function getConversation(conversationId) {
-  return request(`/conversations/${conversationId}`);
-}
-
-export function getConversationMessages(conversationId) {
-  return request(`/conversations/${conversationId}/messages`);
-}
-
-// { content?, file? } — at least one is required.
-export function sendMessage(conversationId, { content, file } = {}) {
-  const formData = new FormData();
-  if (content) formData.append('content', content);
-  if (file) formData.append('file', file);
-  return request(`/conversations/${conversationId}/messages`, { method: 'POST', body: formData });
-}
-
-// Returns { url } — a short-lived signed Supabase Storage URL for the attachment.
-export function getAttachmentDownloadUrl(conversationId, messageId) {
-  return request(`/conversations/${conversationId}/messages/${messageId}/download`);
-}
-
-export function confirmDeleteConversation(conversationId) {
-  return request(`/conversations/${conversationId}/delete-confirm`, { method: 'POST' });
-}
-
-export function cancelDeleteConversation(conversationId) {
-  return request(`/conversations/${conversationId}/delete-cancel`, { method: 'POST' });
-}
-
-// Top Users list. params: { role: 'freelancer' | 'customer', minRating?, minPrice?, maxPrice?, limit?, offset? }
-// Undefined values are left out of the query string.
-export function getTopUsers({ role, minRating, minPrice, maxPrice, limit, offset }) {
-  const qs = new URLSearchParams({ role });
-  if (minRating) qs.set('min_rating', minRating);
-  if (minPrice !== undefined) qs.set('min_price', minPrice);
-  if (maxPrice !== undefined) qs.set('max_price', maxPrice);
-  if (limit) qs.set('limit', limit);
-  if (offset) qs.set('offset', offset);
-  return request(`/top-users?${qs.toString()}`);
 }

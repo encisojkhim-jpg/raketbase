@@ -2,11 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { ClockIcon, PlusIcon, CloseIcon } from '../components/Icons';
-import ClientRatingCard from '../components/ClientRatingCard';
-import ProposalBlockedNotice from '../components/ProposalBlockedNotice';
-import { getProposalBlockReason } from '../utils/proposalEligibility';
-import { useCurrentUser } from '../utils/currentUser';
+import { ClockIcon } from '../components/Icons';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
@@ -21,15 +17,11 @@ export default function JobDetail() {
   const [showApplyForm, setShowApplyForm] = useState(false);
   const [bidAmount, setBidAmount] = useState('');
   const [coverLetter, setCoverLetter] = useState('');
-  // Milestone-based jobs replace the single bid amount with a stage breakdown
-  // (see budget_type on the job). Each row: { title, amount }.
-  const [milestoneRows, setMilestoneRows] = useState([{ title: '', amount: '' }]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState('');
 
   const token = localStorage.getItem('token');
-  const currentUser = useCurrentUser();
 
   useEffect(() => {
     async function loadJob() {
@@ -79,41 +71,14 @@ export default function JobDetail() {
     };
   }, [id, token]);
 
-  const isMilestoneJob = job?.budget_type === 'milestone';
-  const milestoneTotal = milestoneRows.reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
-
-  function addMilestoneRow() {
-    setMilestoneRows((rows) => [...rows, { title: '', amount: '' }]);
-  }
-  function removeMilestoneRow(index) {
-    setMilestoneRows((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows));
-  }
-  function updateMilestoneRow(index, field, value) {
-    setMilestoneRows((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
-  }
-
   async function handleProposalSubmit(e) {
     e.preventDefault();
     setSubmitError('');
     setSubmitSuccess('');
 
-    let payload;
-    if (isMilestoneJob) {
-      const cleaned = milestoneRows.map((m) => ({ title: m.title.trim(), amount: Number(m.amount) }));
-      if (cleaned.some((m) => !m.title)) {
-        return setSubmitError('Every milestone needs a title.');
-      }
-      const badAmount = cleaned.find((m) => !Number.isFinite(m.amount) || m.amount <= 0);
-      if (badAmount) {
-        return setSubmitError('Every milestone needs an amount greater than ₱0.');
-      }
-      payload = { job_id: id, cover_letter: coverLetter.trim(), milestones: cleaned };
-    } else {
-      const amount = Number(bidAmount);
-      if (!bidAmount || Number.isNaN(amount) || amount <= 0) {
-        return setSubmitError('Please enter a valid bid amount greater than ₱0.');
-      }
-      payload = { job_id: id, bid_amount: amount, cover_letter: coverLetter.trim() };
+    const amount = Number(bidAmount);
+    if (!bidAmount || Number.isNaN(amount) || amount <= 0) {
+      return setSubmitError('Please enter a valid bid amount greater than ₱0.');
     }
     if (!coverLetter.trim()) {
       return setSubmitError('A cover letter is required.');
@@ -129,7 +94,11 @@ export default function JobDetail() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          job_id: id,
+          bid_amount: amount,
+          cover_letter: coverLetter.trim(),
+        }),
       });
 
       const body = await res.json();
@@ -149,7 +118,6 @@ export default function JobDetail() {
       setSubmitSuccess('Proposal submitted successfully! The client will review it soon.');
       setBidAmount('');
       setCoverLetter('');
-      setMilestoneRows([{ title: '', amount: '' }]);
     } catch (err) {
       setSubmitError(err.message || 'Something went wrong while submitting.');
     } finally {
@@ -211,10 +179,6 @@ export default function JobDetail() {
               </p>
             </div>
 
-            <div className="border-t border-border pt-6 mt-6">
-              <ClientRatingCard job={job} />
-            </div>
-
             <div className="border-t border-border pt-6 mt-6 flex flex-wrap gap-6 text-xs text-text-secondary">
               {job.deadline && (
                 <div className="flex items-center gap-1.5">
@@ -230,11 +194,7 @@ export default function JobDetail() {
             </div>
 
             {/* In-page proposal submission section */}
-            {getProposalBlockReason(job, currentUser) ? (
-              <div className="mt-6 border-t border-border pt-6">
-                <ProposalBlockedNotice reason={getProposalBlockReason(job, currentUser)} />
-              </div>
-            ) : alreadyApplied ? (
+            {alreadyApplied ? (
               <div className="mt-6 border-t border-border pt-6">
                 <div className="flex items-center gap-2.5 rounded-md bg-accent/10 border border-accent/30 p-3.5 text-sm font-medium text-accent">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[#1A1305] text-xs font-bold">
@@ -270,72 +230,22 @@ export default function JobDetail() {
                 )}
 
                 <form onSubmit={handleProposalSubmit} className="space-y-4">
-                  {isMilestoneJob ? (
-                    <div>
-                      <div className="mb-1.5 flex items-center justify-between">
-                        <label className="text-[13px] font-medium text-text-secondary">Milestone Breakdown</label>
-                        <span className="text-[13px] font-semibold text-accent">
-                          Total: ₱{milestoneTotal.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="space-y-2.5">
-                        {milestoneRows.map((row, index) => (
-                          <div key={index} className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              placeholder={`Milestone ${index + 1} (e.g. Wireframes)`}
-                              value={row.title}
-                              onChange={(e) => updateMilestoneRow(index, 'title', e.target.value)}
-                              className="min-w-0 flex-1 rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-                            />
-                            <input
-                              type="number"
-                              min="1"
-                              step="0.01"
-                              placeholder="₱ Amount"
-                              value={row.amount}
-                              onChange={(e) => updateMilestoneRow(index, 'amount', e.target.value)}
-                              className="w-32 shrink-0 rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeMilestoneRow(index)}
-                              disabled={milestoneRows.length === 1}
-                              className="shrink-0 text-text-secondary hover:text-error disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                              aria-label="Remove milestone"
-                            >
-                              <CloseIcon className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={addMilestoneRow}
-                        className="mt-2.5 flex items-center gap-1.5 text-[13px] font-medium text-accent hover:underline cursor-pointer"
-                      >
-                        <PlusIcon className="h-3.5 w-3.5" />
-                        Add another milestone
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="mb-1.5 block text-[13px] font-medium text-text-secondary" htmlFor="bidAmount">
-                        Your Bid (₱)
-                      </label>
-                      <input
-                        id="bidAmount"
-                        type="number"
-                        min="1"
-                        step="0.01"
-                        required
-                        placeholder="e.g. 15000"
-                        value={bidAmount}
-                        onChange={(e) => setBidAmount(e.target.value)}
-                        className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <label className="mb-1.5 block text-[13px] font-medium text-text-secondary" htmlFor="bidAmount">
+                      Your Bid (₱)
+                    </label>
+                    <input
+                      id="bidAmount"
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      required
+                      placeholder="e.g. 15000"
+                      value={bidAmount}
+                      onChange={(e) => setBidAmount(e.target.value)}
+                      className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+                    />
+                  </div>
 
                   <div>
                     <label className="mb-1.5 block text-[13px] font-medium text-text-secondary" htmlFor="coverLetter">

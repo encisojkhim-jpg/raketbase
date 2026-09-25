@@ -3,10 +3,9 @@
 // 1. /my-jobs        -> list of jobs the logged-in client has posted, with proposal counts
 // 2. /my-jobs/:id     -> a single job's proposals, with Accept / Reject actions
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { ClockIcon } from '../components/Icons';
-import { RatingBadge } from '../components/StarRating';
 import { getMyJobs, getJobProposals, acceptProposal, rejectProposal } from '../services/api';
 
 const STATUS_STYLES = {
@@ -260,15 +259,9 @@ function ProposalCard({ proposal, jobIsOpen, busy, onAccept, onReject }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Link
-              to={`/users/${proposal.freelancer_id}?role=freelancer`}
-              className="font-display text-base font-medium hover:text-accent hover:underline cursor-pointer"
-            >
-              {name}
-            </Link>
+            <p className="font-display text-base font-medium">{name}</p>
             <StatusPill status={proposal.status} />
           </div>
-          <RatingBadge rating={proposal.freelancer_rating} className="mt-1" />
           <p className="mt-1 flex items-center gap-1.5 text-[12px] text-text-secondary">
             <ClockIcon className="h-3.5 w-3.5" />
             Submitted {formatDate(proposal.submitted_at)}
@@ -285,22 +278,6 @@ function ProposalCard({ proposal, jobIsOpen, busy, onAccept, onReject }) {
       <p className="mt-4 whitespace-pre-line text-[14px] leading-relaxed text-text-secondary">
         {proposal.cover_letter}
       </p>
-
-      {proposal.proposal_milestones?.length > 0 && (
-        <div className="mt-4 border-t border-border pt-4">
-          <p className="mb-2 text-[12px] font-medium text-text-secondary">Milestone breakdown</p>
-          <ul className="space-y-1.5">
-            {proposal.proposal_milestones.map((m, i) => (
-              <li key={m.proposal_milestone_id} className="flex items-center justify-between text-[13px]">
-                <span className="text-text">
-                  {i + 1}. {m.title}
-                </span>
-                <span className="font-medium text-accent">₱{Number(m.amount).toLocaleString()}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {jobIsOpen && proposal.status === 'pending' && (
         <div className="mt-4 flex gap-2.5 border-t border-border pt-4">
