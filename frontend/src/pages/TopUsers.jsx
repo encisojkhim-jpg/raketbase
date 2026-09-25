@@ -120,7 +120,7 @@ export default function TopUsers() {
         
 
         <div className="row g-4 px-3 mb-4">
-          <div className="col-12 col-md-3">
+          <div className="col-12 col-xl-3 col-lg-4 sticky-filter">
             <FiltersSidebar
               isFreelancer={isFreelancer}
               minRating={minRating}
@@ -137,7 +137,7 @@ export default function TopUsers() {
             />
           </div>
 
-          <div className="col-12 col-md-9">
+          <div className="col-12 col-xl-9 col-lg-8">
             <div className="d-flex align-items-start justify-content-between gap-3 mb-4">
               <div>
                 <h2 className="fw-bold mb-1">Top users</h2>
@@ -374,7 +374,7 @@ function TopUserCard({ user, role, rank }) {
   const isFreelancer = role === 'freelancer';
   return (
     <div className="card h-100 shadow-sm border-0">
-      <div className="card-body text-center position-relative">
+      <div className="card-body text-center position-relative p-0">
         <span className="badge bg-light border text-dark rounded-pill position-absolute top-0 start-0 m-3">
           #{rank}
         </span>

@@ -155,7 +155,7 @@ export default function Dashboard() {
                 <div className="card card-stat d-flex flex-column justify-content-between h-100">
                   <div>
                     <div className="card-header">
-                      <span className="stat-label">Active Contracts</span>
+                      <h2 className="card-title" style={{ fontSize: "1.2rem" }}>Active Contracts</h2>
                     </div>
                     <div className="stat-value">{activeContracts.length}</div>
                     <div className="trend-badge trend-up">
@@ -169,7 +169,7 @@ export default function Dashboard() {
                 <div className="card card-stat d-flex flex-column justify-content-between h-100">
                   <div>
                     <div className="card-header">
-                      <span className="stat-label">{user.active_role === 'customer' ? 'Total Escrow Funded' : 'Total Contract Value'}</span>
+                      <h2 className="card-title" style={{ fontSize: "1.2rem" }}>{user.active_role === 'customer' ? 'Total Escrow Funded' : 'Total Contract Value'}</h2>
                     </div>
                     <div className="stat-value">₱{totalAgreedEscrow.toLocaleString()}</div>
                     <div className="trend-badge trend-up">

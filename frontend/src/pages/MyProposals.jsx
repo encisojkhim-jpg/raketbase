@@ -189,7 +189,7 @@ function ProposalRow({ proposal, busy, onWithdraw, onUnwithdraw }) {
 
   return (
     <div className="card rounded-3 shadow-sm border-0">
-      <div className="card-body p-4">
+      <div className="card-body p-0">
         <div className="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
           <div>
             <div className="d-flex align-items-center gap-2 mb-1">

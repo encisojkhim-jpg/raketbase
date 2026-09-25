@@ -123,7 +123,7 @@ export default function Explore() {
         </div>
 
         <div className="row g-4 px-3 mb-4">
-          <div className="col-xl-9 col-lg-8 order-2 order-lg-1">
+          <div className="col-xl-9 col-lg-8 order-2">
             <div className="d-flex flex-wrap gap-2 mb-4 pb-2">
               {categories.map((c) => {
                 const isActive = activeCategory === c.id;
@@ -169,7 +169,7 @@ export default function Explore() {
             )}
           </div>
 
-          <div className={`col-xl-3 col-lg-4 order-1 order-lg-2 ${!filtersOpen ? 'd-none' : ''}`}>
+          <div className={`col-xl-3 col-lg-4 order-1 sticky-filter ${!filtersOpen ? 'd-none' : ''}`}>
             {budget && (
               <FiltersSidebar
                 budget={budget}
@@ -256,7 +256,7 @@ function JobCard({ job, onOpen }) {
 
   return (
     <div className="card h-100 border transition-all" style={{ cursor: 'pointer' }} onClick={onOpen}>
-      <div className="card-body d-flex flex-column">
+      <div className="card-body d-flex flex-column p-0">
         <div className="mb-3">
           <span className="badge bg-light border text-dark fw-semibold px-3 py-2 rounded-pill" style={{ fontSize: '0.85rem' }}>
             {categoryName}
