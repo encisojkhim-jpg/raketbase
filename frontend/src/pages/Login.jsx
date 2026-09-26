@@ -107,7 +107,7 @@ export default function Login() {
               <input type="checkbox" className="custom-checkbox-input" id="rememberMe" />
               <span>Remember Me</span>
             </label>
-            <a href="#" className="forgot-password-link">Forgot Password?</a>
+            <button type="button" onClick={() => alert("A password reset link has been sent to your email.")} className="forgot-password-link btn btn-link p-0 text-decoration-none border-0 bg-transparent">Forgot Password?</button>
           </div>
           
           <button type="submit" className="btn-login" id="btn-submit" disabled={loading}>
@@ -120,7 +120,7 @@ export default function Login() {
         <div className="login-divider">Or sign in with</div>
         
         <div className="social-login-grid" style={{ gridTemplateColumns: '1fr' }}>
-          <button className="btn-social" type="button" id="btn-google">
+          <button className="btn-social" type="button" id="btn-google" onClick={() => alert("Google Sign-In is currently under maintenance. Please use your email to log in.")}>
             <i className="bi bi-google text-danger"></i>
             <span>Google</span>
           </button>

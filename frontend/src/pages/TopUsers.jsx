@@ -163,7 +163,7 @@ export default function TopUsers() {
                 <button
                   key={t.id}
                   onClick={() => changeTab(t.id)}
-                  className={`btn rounded-pill px-4 ${
+                  className={`btn rounded-pill px-4 py-2 flex-shrink-0 fw-medium ${
                     tab === t.id
                       ? 'text-white'
                       : 'btn-outline-secondary border-0'

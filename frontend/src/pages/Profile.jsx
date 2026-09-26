@@ -127,9 +127,9 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const maxSize = 2 * 1024 * 1024; // 2MB
+    const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
-      setSaveMsg({ type: 'error', text: 'Image must be under 2MB.' });
+      setSaveMsg({ type: 'error', text: 'Image must be under 5MB.' });
       return;
     }
 
@@ -308,7 +308,7 @@ export default function Profile() {
                     />
                     {isOwnProfile && (
                       <>
-                        <input type="file" ref={fileInputRef} className="d-none" accept="image/png,image/jpeg,image/webp" onChange={handleAvatarUpload} />
+                        <input type="file" ref={fileInputRef} className="d-none" accept=".jpg,.jpeg,.png" onChange={handleAvatarUpload} />
                         <button
                           className="btn btn-dark btn-sm rounded-circle position-absolute bottom-0 end-0 d-flex align-items-center justify-content-center"
                           style={{ width: '36px', height: '36px' }}
@@ -336,7 +336,7 @@ export default function Profile() {
                         </div>
                       </div>
                       <label className="form-label small fw-medium">Professional Title</label>
-                      <input type="text" className="form-control bg-light" placeholder="e.g. Full Stack Developer" value={form.title} onChange={(e) => handleChange('title', e.target.value)} />
+                      <input type="text" className="form-control bg-light" placeholder="e.g. Full Stack Developer" maxLength="50" value={form.title} onChange={(e) => { const v = e.target.value.replace(/[^A-Za-z0-9 ]/g, ""); handleChange("title", v); }} />
                     </div>
                   ) : (
                     <>
@@ -349,7 +349,13 @@ export default function Profile() {
                   {editing ? (
                     <div className="text-start mb-3">
                       <label className="form-label small fw-medium">Location</label>
-                      <input type="text" className="form-control bg-light" placeholder="e.g. Manila, Philippines" value={form.location} onChange={(e) => handleChange('location', e.target.value)} />
+                      <select className="form-select bg-light" value={form.location} onChange={(e) => handleChange('location', e.target.value)}>
+    <option value="">Select a region...</option>
+    <option value="Metro Manila">Metro Manila</option>
+    <option value="Cebu">Cebu</option>
+    <option value="Davao">Davao</option>
+    <option value="Other">Other</option>
+  </select>
                     </div>
                   ) : (
                     f.location && <p className="text-muted small mb-3"><i className="bi bi-geo-alt-fill me-1"></i>{f.location}</p>

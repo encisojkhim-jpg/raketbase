@@ -1,4 +1,6 @@
-import { useState } from 'react';
+const fs = require('fs');
+
+const fileContent = `import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerUser } from '../services/api';
 
@@ -16,7 +18,7 @@ export default function Register() {
 
   const isNameValid = (name) => /^[A-Za-z]{2,50}$/.test(name);
   const isEmailValid = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-  const isPasswordValid = (p) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(p);
+  const isPasswordValid = (p) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$/.test(p);
 
   const isFormComplete = isNameValid(firstName) && isNameValid(lastName) && isEmailValid(email) && isPasswordValid(password) && role !== '';
   const hasInput = firstName || lastName || email || password || role !== 'freelancer';
@@ -146,7 +148,7 @@ export default function Register() {
                 <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
               </button>
             </div>
-            {password && !isPasswordValid(password) && <div className="text-danger small mt-1">Must contain at least 8 chars, 1 uppercase, 1 lowercase, 1 number.</div>}
+            {password && !isPasswordValid(password) && <div className="text-danger small mt-1">Must contain at least 8 characters, an uppercase, lowercase, and number.</div>}
           </div>
 
           <div className="login-form-group mb-4">
@@ -169,7 +171,7 @@ export default function Register() {
           <div className="d-flex gap-2">
             <button 
               type="button" 
-              className="btn btn-outline-secondary w-50 rounded-pill fw-semibold" style={{ padding: "0.6rem" }} 
+              className="btn btn-outline-secondary w-100 rounded-pill fw-bold" 
               onClick={handleClear}
               disabled={!hasInput}
             >
@@ -177,11 +179,11 @@ export default function Register() {
             </button>
             <button 
               type="submit" 
-              className="btn-login m-0 w-50" 
-              style={{ backgroundColor: isFormComplete ? '#FF5A1E' : '#6c757d', borderColor: isFormComplete ? '#FF5A1E' : '#6c757d', cursor: isFormComplete ? 'pointer' : 'not-allowed' }}
+              className="btn-login m-0" 
+              style={{ backgroundColor: isFormComplete ? '#FF5A1E' : '#6c757d', cursor: isFormComplete ? 'pointer' : 'not-allowed' }}
               disabled={!isFormComplete || loading}
             >
-              <span>{loading ? 'Registering...' : 'Submit'}</span>
+              <span>{loading ? 'Registering...' : 'Create Account'}</span>
               <i className="bi bi-arrow-right"></i>
             </button>
           </div>
@@ -205,3 +207,6 @@ export default function Register() {
     </div>
   );
 }
+`;
+fs.writeFileSync('c:/Users/mspau/OneDrive/Documents/GitHub/raketbase/frontend/src/pages/Register.jsx', fileContent);
+console.log('Register.jsx updated');
