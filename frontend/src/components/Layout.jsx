@@ -71,9 +71,9 @@ export default function Layout() {
   return (
     <>
       <div className={`sidebar-wrapper ${isMobileSidebarOpen ? 'show' : ''}`} id="sidebar">
-        <Link to="/" className="sidebar-brand text-decoration-none d-flex align-items-center gap-1" style={{ padding: '10px 0' }}>
-          <img src="/racketbaseSVG.svg" alt="RaketBase Logo" style={{ height: '50px', objectFit: 'contain', marginTop: '-8px' }} />
-          <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '24px', color: '#fff', letterSpacing: '0.5px', display: 'flex', alignItems: 'center' }}>
+        <Link to="/" className="sidebar-brand text-decoration-none d-flex align-items-center gap-2" style={{ padding: '10px 0' }}>
+          <img src="/racketbaseSVG.svg" alt="RaketBase Logo" style={{ height: '36px', objectFit: 'contain', marginTop: '-4px' }} />
+          <div className="sidebar-brand-text" style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '20px', color: '#fff', letterSpacing: '0.5px', display: 'flex', alignItems: 'center' }}>
             <span style={{ fontWeight: 800 }}>RAKET</span>
             <span style={{ fontWeight: 400 }}>BASE</span>
           </div>

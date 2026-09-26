@@ -3665,3 +3665,69 @@ body.dark-mode .navbar-action-btn:hover {
     color: #B4F105 !important;
 }
 
+
+
+/* =====================================================================
+   REGISTER CARD WIDTH
+   ===================================================================== */
+.register-card {
+    max-width: 700px !important;
+}
+
+/* ---------------------------------------------------------------------
+   Register Page Button Adjustments
+   --------------------------------------------------------------------- */
+.register-btn {
+  display: inline-block;
+  max-width: 180px;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border-radius: 999px; /* pill shape */
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Ensure btn-login does not force full width inside register page */
+.login-card .btn-login {
+  width: auto;
+  min-width: 120px;
+}
+
+/* ---------------------------------------------------------------------
+   Custom Autocomplete Menu (Register Page)
+   --------------------------------------------------------------------- */
+.custom-autocomplete-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1050;
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  overflow-y: auto;
+  background-color: var(--card-background);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  margin-top: 5px;
+  padding: 0.5rem 0;
+  list-style: none;
+}
+
+.custom-autocomplete-menu li button {
+  padding: 0.5rem 1.2rem;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  font-size: 0.95rem;
+  color: var(--text-main);
+  transition: all 0.2s ease-in-out;
+}
+
+.custom-autocomplete-menu li button:hover,
+.custom-autocomplete-menu li button:focus {
+  background-color: var(--brand-lime-translucent);
+  color: var(--brand-forest-dark);
+  outline: none;
+}

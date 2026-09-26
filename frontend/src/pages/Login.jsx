@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { loginUser } from '../services/api';
 
 export default function Login() {
+  useEffect(() => {
+    document.body.classList.remove('dark-mode');
+  }, []);
+
   const [searchParams] = useSearchParams();
   const justRegistered = searchParams.get('registered') === '1';
 
